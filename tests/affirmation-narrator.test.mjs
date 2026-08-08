@@ -15,6 +15,7 @@ class FakeSpeechSynthesis {
     this.current = null;
     this.pauseCount = 0;
     this.resumeCount = 0;
+    this.cancelCount = 0;
   }
 
   getVoices() {
@@ -35,7 +36,9 @@ class FakeSpeechSynthesis {
     this.resumeCount += 1;
   }
 
-  cancel() {}
+  cancel() {
+    this.cancelCount += 1;
+  }
 }
 
 const scheduleImmediately = (callback) => {
@@ -78,7 +81,7 @@ test("recites each affirmation three times and completes one wrapped cycle", asy
   assert.equal(narrator.isActive(), false);
 });
 
-test("toggles between pause and resume during an active recitation", () => {
+test("reliably resumes by restarting the current repetition after pause", () => {
   const speech = new FakeSpeechSynthesis({ autoEnd: false });
   const states = [];
   const narrator = createAffirmationNarrator({
@@ -88,10 +91,14 @@ test("toggles between pause and resume during an active recitation", () => {
   });
 
   narrator.toggle([{ id: "a", text: "Affirmation A" }], "a");
+  const cancelCountAfterStart = speech.cancelCount;
   narrator.toggle();
+  const canceledUtterance = speech.current;
+  canceledUtterance.onend?.();
   narrator.toggle();
 
-  assert.equal(speech.pauseCount, 1);
-  assert.equal(speech.resumeCount, 1);
+  assert.equal(speech.cancelCount, cancelCountAfterStart + 1);
+  assert.deepEqual(speech.spoken, ["Affirmation A", "Affirmation A"]);
+  assert.equal(speech.resumeCount, 0);
   assert.deepEqual(states.slice(-2), ["paused", "speaking"]);
 });
