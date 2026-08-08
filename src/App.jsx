@@ -40,6 +40,7 @@ import {
   Trophy,
 } from "@phosphor-icons/react";
 import { AMBIENT_TRACKS, createAmbientSoundscape } from "./ambient-audio";
+import { createAffirmationNarrator } from "./affirmation-narrator";
 
 const CATEGORIES = ["Prosperity", "Confidence", "Health", "Career", "Love", "Gratitude", "Calm", "Sleep"];
 
@@ -184,7 +185,14 @@ function Header({ view, setView, theme, setTheme }) {
   );
 }
 
-function AffirmationHero({ affirmation, isSaved, onPrevious, onNext, onListen, onSave, onShare }) {
+function AffirmationHero({ affirmation, isSaved, narration, onPrevious, onNext, onListen, onSave, onShare }) {
+  const narrating = narration.status !== "idle";
+  const narrationLabel = narration.status === "speaking"
+    ? `Pause · ${narration.repetition}/3`
+    : narration.status === "paused"
+      ? `Resume · ${narration.repetition}/3`
+      : "Listen";
+
   return (
     <section className="affirmation-hero" aria-labelledby="affirmation-heading">
       <div className="hero-shade" />
@@ -195,7 +203,15 @@ function AffirmationHero({ affirmation, isSaved, onPrevious, onNext, onListen, o
         <p className="note">{affirmation.note}</p>
         <div className="affirmation-actions">
           <button className="icon-button" onClick={onPrevious} aria-label="Previous affirmation"><ArrowLeft size={20} /></button>
-          <button className="primary-button" onClick={onListen}><Play size={19} weight="fill" /> Listen</button>
+          <button
+            className={`primary-button ${narrating ? "narrating" : ""}`}
+            onClick={onListen}
+            aria-label={narrating ? `${narrationLabel}, affirmation ${narration.cyclePosition + 1} of ${narration.total}` : "Listen to the complete affirmation cycle"}
+            title={narrating ? `Affirmation ${narration.cyclePosition + 1} of ${narration.total}` : "Recites every affirmation three times"}
+          >
+            {narration.status === "speaking" ? <Pause size={19} weight="fill" /> : <Play size={19} weight="fill" />}
+            {narrationLabel}
+          </button>
           <button className="icon-button" onClick={onNext} aria-label="Next affirmation"><ArrowRight size={20} /></button>
           <span className="action-divider" />
           <button className={`text-button ${isSaved ? "selected" : ""}`} onClick={onSave}><Heart size={22} weight={isSaved ? "fill" : "regular"} /> {isSaved ? "Saved" : "Save"}</button>
@@ -470,7 +486,9 @@ export function App() {
   const [minutes, setMinutes] = useStoredState("igMinutes", 0);
   const [selectedId, setSelectedId] = useState("a20");
   const [toast, setToast] = useState("");
+  const [narration, setNarration] = useState({ status: "idle", repetition: 0, cyclePosition: 0, total: 0 });
   const toastTimer = useRef();
+  const narrator = useRef();
   const allAffirmations = useMemo(() => [...AFFIRMATIONS, ...custom], [custom]);
   const affirmation = allAffirmations.find((item) => item.id === selectedId) || allAffirmations[20] || AFFIRMATIONS[0];
   const today = manilaDateKey();
@@ -486,18 +504,39 @@ export function App() {
     toastTimer.current = window.setTimeout(() => setToast(""), 2600);
   };
 
+  const stopNarration = (message = "") => {
+    narrator.current?.stop();
+    setNarration({ status: "idle", repetition: 0, cyclePosition: 0, total: 0 });
+    if (message) notify(message);
+  };
+
+  useEffect(() => {
+    narrator.current = createAffirmationNarrator({
+      speechSynthesis: window.speechSynthesis,
+      Utterance: window.SpeechSynthesisUtterance,
+      onAffirmation: (item) => setSelectedId(item.id),
+      onProgress: setNarration,
+      onComplete: ({ totalRecitations }) => notify(`Full cycle complete · ${totalRecitations} recitations`),
+      onError: () => notify("Narration was interrupted by this browser"),
+    });
+    return () => narrator.current?.destroy();
+  }, []);
+
   const move = (direction) => {
+    if (narrator.current?.isActive()) stopNarration();
     const index = allAffirmations.findIndex((item) => item.id === affirmation.id);
     const next = (index + direction + allAffirmations.length) % allAffirmations.length;
     setSelectedId(allAffirmations[next].id);
   };
 
   const listen = () => {
-    window.speechSynthesis?.cancel();
-    const utterance = new SpeechSynthesisUtterance(affirmation.text);
-    utterance.rate = 0.86;
-    window.speechSynthesis?.speak(utterance);
-    notify("Reading your affirmation aloud");
+    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+      notify("Spoken affirmations are not supported in this browser");
+      return;
+    }
+    const starting = !narrator.current?.isActive();
+    narrator.current?.toggle(allAffirmations, affirmation.id);
+    if (starting) notify(`${allAffirmations.length} affirmations · three recitations each`);
   };
 
   const toggleFavorite = (id) => {
@@ -523,14 +562,15 @@ export function App() {
   const moodToday = moods[today] || 0;
   const gratitudeToday = gratitudes[today] || "";
 
-  const selectAffirmation = (item) => { setSelectedId(item.id); setView("today"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const selectAffirmation = (item) => { if (narrator.current?.isActive()) stopNarration(); setSelectedId(item.id); setView("today"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const changeView = (nextView) => { if (nextView !== "today" && narrator.current?.isActive()) stopNarration(); setView(nextView); };
 
   return (
     <div className="app-shell" style={{ "--aurora-image": `url(${AURORA_ASSET})` }}>
-      <Header view={view} setView={setView} theme={theme} setTheme={setTheme} />
+      <Header view={view} setView={changeView} theme={theme} setTheme={setTheme} />
       <main>
         {view === "today" && <TodayView
-          hero={{ affirmation, isSaved: favorites.includes(affirmation.id), onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
+          hero={{ affirmation, isSaved: favorites.includes(affirmation.id), narration, onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
           ritual={{ minutes, setMinutes, practiceDays, setPracticeDays, notify }}
           checkin={{ mood: moodToday, setMood: (value) => setMoods({ ...moods, [today]: moodToday === value ? 0 : value }), gratitude: gratitudeToday, setGratitude: (value) => setGratitudes({ ...gratitudes, [today]: value }) }}
           stats={{ minutes, savedCount: favorites.length, consistency: Math.round((consistency / 7) * 100) }}
@@ -539,7 +579,7 @@ export function App() {
         {view === "journal" && <JournalView moods={moods} gratitudes={gratitudes} practiceDays={practiceDays} />}
         {view === "wishes" && <WishesView wishes={wishes} setWishes={setWishes} notify={notify} />}
       </main>
-      <BottomNav view={view} setView={setView} />
+      <BottomNav view={view} setView={changeView} />
       <div className={`toast ${toast ? "show" : ""}`} role="status"><Check size={18} weight="bold" /> {toast}</div>
     </div>
   );
