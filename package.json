@@ -5,11 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/prepare-sites-build.mjs",
-    "build:inline": "npm run build && node scripts/inline-build.mjs",
-    "assets:embed": "node scripts/embed-source-assets.mjs",
-    "preview": "vite preview",
-    "test:sites": "node --test tests/sites-worker.test.mjs"
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.2.8",
