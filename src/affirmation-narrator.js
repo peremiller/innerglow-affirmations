@@ -11,6 +11,7 @@ export function createAffirmationNarrator({
   unschedule = (timer) => window.clearTimeout(timer),
 }) {
   let timer;
+  let utteranceVersion = 0;
   let run = {
     token: 0,
     active: false,
@@ -54,6 +55,7 @@ export function createAffirmationNarrator({
   const speakCurrent = () => {
     if (!run.active || run.paused || !run.sequence.length) return;
     const token = run.token;
+    const version = ++utteranceVersion;
     const itemIndex = (run.startIndex + run.itemOffset) % run.sequence.length;
     const item = run.sequence[itemIndex];
     run.waiting = false;
@@ -66,17 +68,17 @@ export function createAffirmationNarrator({
     utterance.pitch = 0.96;
 
     const scheduleNext = (delay) => {
-      if (!run.active || run.token !== token) return;
+      if (!run.active || run.token !== token || utteranceVersion !== version) return;
       run.waiting = true;
       timer = schedule(() => {
         timer = undefined;
-        if (!run.active || run.token !== token || run.paused) return;
+        if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
         speakCurrent();
       }, delay);
     };
 
     utterance.onend = () => {
-      if (!run.active || run.token !== token) return;
+      if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
       if (run.repetition < 3) {
         run.repetition += 1;
         emitProgress("speaking");
@@ -93,7 +95,7 @@ export function createAffirmationNarrator({
     };
 
     utterance.onerror = (event) => {
-      if (!run.active || run.token !== token || ["canceled", "interrupted"].includes(event.error)) return;
+      if (!run.active || run.token !== token || utteranceVersion !== version || ["canceled", "interrupted"].includes(event.error)) return;
       stop();
       onError?.(event);
     };
@@ -122,8 +124,10 @@ export function createAffirmationNarrator({
   const pause = () => {
     if (!run.active || run.paused) return false;
     run.paused = true;
+    run.waiting = true;
     clearScheduledStep();
-    speechSynthesis.pause();
+    utteranceVersion += 1;
+    speechSynthesis.cancel();
     emitProgress("paused");
     return true;
   };
@@ -131,13 +135,8 @@ export function createAffirmationNarrator({
   const resume = () => {
     if (!run.active || !run.paused) return false;
     run.paused = false;
-    emitProgress("speaking");
-    if (run.waiting) {
-      run.waiting = false;
-      speakCurrent();
-    } else {
-      speechSynthesis.resume();
-    }
+    run.waiting = false;
+    speakCurrent();
     return true;
   };
 
@@ -147,6 +146,7 @@ export function createAffirmationNarrator({
     run.paused = false;
     run.waiting = false;
     clearScheduledStep();
+    utteranceVersion += 1;
     speechSynthesis?.cancel?.();
     onProgress?.(IDLE_PROGRESS);
   }
