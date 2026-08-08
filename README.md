@@ -42,3 +42,5 @@ Dark glassmorphism with Instrument Serif display type, specular card edges, and 
 ---
 
 Built with [Claude Code](https://claude.com/claude-code).
+
+_Auto-deploys from `main` via Vercel GitHub integration._
