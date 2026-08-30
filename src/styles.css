@@ -130,7 +130,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 }
 
 .hero-shade { position: absolute; inset: 0; background: rgba(3, 8, 20, 0.27); pointer-events: none; }
-.hero-content { position: relative; z-index: 1; min-height: 765px; padding: clamp(54px, 6vw, 92px) clamp(38px, 6vw, 84px) 62px; display: flex; flex-direction: column; align-items: flex-start; }
+.affirmation-visual { --visual-a: #7ce9db; --visual-b: #ae8cff; position: absolute; z-index: 1; top: 44px; right: 44px; width: 270px; display: grid; justify-items: center; color: var(--visual-a); opacity: 0.78; pointer-events: none; filter: drop-shadow(0 20px 48px rgba(0, 0, 0, 0.34)); }
+.visual-kicker { justify-self: end; margin-right: 12px; padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--visual-a) 35%, transparent); border-radius: 999px; background: rgba(3, 9, 22, 0.52); color: #eafcf9; font-size: 8px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; backdrop-filter: blur(10px); }
+.visual-orbit { width: 240px; aspect-ratio: 1; position: relative; display: grid; place-items: center; margin-top: -1px; animation: visual-float 7s ease-in-out infinite; }
+.orbit { position: absolute; border: 1px solid color-mix(in srgb, var(--visual-a) 55%, transparent); border-radius: 50%; box-shadow: inset 0 0 24px color-mix(in srgb, var(--visual-b) 13%, transparent), 0 0 18px color-mix(in srgb, var(--visual-a) 10%, transparent); }
+.orbit-one { width: 82%; height: 34%; transform: rotate(18deg); }
+.orbit-two { width: 82%; height: 34%; transform: rotate(78deg); border-color: color-mix(in srgb, var(--visual-b) 48%, transparent); }
+.orbit-three { width: 68%; height: 68%; border-style: dashed; opacity: 0.65; animation: visual-spin 22s linear infinite; }
+.visual-core { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 35% 25%, #fff 0 2%, var(--visual-a) 3%, color-mix(in srgb, var(--visual-b) 74%, #101a39) 58%, rgba(8, 15, 35, 0.92) 100%); border: 1px solid rgba(255, 255, 255, 0.42); box-shadow: 0 0 34px color-mix(in srgb, var(--visual-a) 44%, transparent), 0 0 78px color-mix(in srgb, var(--visual-b) 28%, transparent); }
+.visual-star { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 14px 4px var(--visual-a); }
+.star-one { top: 23%; left: 15%; }
+.star-two { right: 10%; top: 54%; width: 4px; height: 4px; }
+.star-three { bottom: 17%; left: 28%; width: 3px; height: 3px; }
+.visual-pulse { height: 28px; display: flex; align-items: center; gap: 7px; margin-top: -14px; }
+.visual-pulse span { width: 3px; height: 8px; border-radius: 999px; background: linear-gradient(var(--visual-a), var(--visual-b)); animation: visual-pulse 1.8s ease-in-out infinite; }
+.visual-pulse span:nth-child(2), .visual-pulse span:nth-child(4) { height: 19px; animation-delay: -0.35s; }
+.visual-pulse span:nth-child(3) { height: 27px; animation-delay: -0.7s; }
+@keyframes visual-spin { to { transform: rotate(360deg); } }
+@keyframes visual-float { 50% { transform: translateY(10px) scale(1.02); } }
+@keyframes visual-pulse { 50% { transform: scaleY(0.45); opacity: 0.55; } }
+.hero-content { position: relative; z-index: 2; min-height: 765px; padding: clamp(54px, 6vw, 92px) clamp(38px, 6vw, 84px) 62px; display: flex; flex-direction: column; align-items: flex-start; }
 .eyebrow { margin: 0; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
 .category { color: var(--accent); font-size: 16px; display: inline-flex; align-items: center; gap: 10px; margin: 28px 0 30px; }
 .affirmation-hero blockquote {
@@ -142,6 +161,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   text-shadow: 0 8px 28px rgba(0, 0, 0, 0.36);
 }
 .affirmation-hero .note { color: #b4bfd0; font-size: 17px; margin: 34px 0 0; }
+.repeat-control { display: grid; grid-template-columns: auto auto; align-items: center; gap: 8px 12px; margin-top: 24px; padding: 10px 11px 9px 14px; border: 1px solid var(--line-strong); border-radius: 15px; background: rgba(4, 12, 28, 0.58); backdrop-filter: blur(14px); }
+.repeat-control > span { display: inline-flex; align-items: center; gap: 7px; color: #d7e2ee; font-size: 11px; font-weight: 600; }
+.repeat-control > span svg { color: var(--accent); }
+.repeat-control > div { display: flex; gap: 5px; }
+.repeat-control button { width: 38px; height: 31px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, 0.035); color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; }
+.repeat-control button:hover, .repeat-control button.active { color: #061124; border-color: var(--accent); background: var(--accent); box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 24%, transparent); }
+.repeat-control small { grid-column: 1 / -1; color: #7f90a8; font-size: 9px; }
 .affirmation-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: auto; padding-top: 42px; }
 .icon-button, .text-button, .primary-button { min-height: 52px; border-radius: 16px; cursor: pointer; border: 1px solid var(--line-strong); }
 .icon-button { width: 52px; background: rgba(5, 13, 30, 0.64); display: grid; place-items: center; }
@@ -191,10 +217,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .volume-control output { font-size: 9px; text-align: right; color: #aeb9c9; }
 .music-status { display: block; margin-top: 6px; color: #6f8198; font-size: 9px; text-align: center; }
 .practice-button { width: 100%; min-height: 49px; margin-top: 13px; border: 1px solid rgba(157, 240, 229, 0.4); border-radius: 13px; background-color: #17305b; background-image: var(--aurora-image); background-size: 620px auto; background-position: 65% 35%; color: #fff; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; padding: 0 16px; font-weight: 700; cursor: pointer; font-size: 12px; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75); }
-.reminder-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; margin-top: 10px; color: var(--muted); }
-.reminder-row input, .reminder-row button { min-height: 34px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, 0.025); color: #d9dfeb; font-size: 10px; }
-.reminder-row input { width: 100%; padding: 0 8px; color-scheme: dark; }
-.reminder-row button { padding: 0 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.notification-schedule { margin-top: 11px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(135deg, rgba(124, 233, 219, 0.065), rgba(174, 140, 255, 0.045)); padding: 12px; }
+.notification-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.notification-heading > span { display: inline-flex; align-items: center; gap: 7px; color: var(--accent); text-transform: uppercase; font-size: 9px; letter-spacing: 0.15em; font-weight: 700; }
+.notification-heading > small { border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px; color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: 0.12em; }
+.notification-heading > small.enabled { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); background: var(--accent-soft); }
+.notification-times { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.notification-times > div { min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px; padding: 7px 6px; border: 1px solid var(--line); border-radius: 10px; background: rgba(3, 9, 22, 0.36); }
+.notification-times span { min-width: 0; display: grid; gap: 2px; }
+.notification-times strong { font-size: 9px; white-space: nowrap; }
+.notification-times small { color: var(--muted); font-size: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.time-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+.time-dot-2 { background: #ffb072; box-shadow: 0 0 12px #ffb072; }
+.time-dot-3 { background: #b294ff; box-shadow: 0 0 12px #b294ff; }
+.notification-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.notification-actions button { min-height: 31px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, 0.025); color: #c4cedc; font-size: 8px; cursor: pointer; }
+.notification-actions button.active { border-color: color-mix(in srgb, var(--accent) 38%, transparent); color: var(--accent); background: var(--accent-soft); }
+.notification-actions button:disabled { cursor: not-allowed; opacity: 0.55; }
+.notification-schedule > p { margin: 8px 0 0; color: #718299; font-size: 8px; line-height: 1.4; text-align: center; }
 
 .checkin-grid { display: grid; gap: 12px; }
 .checkin-card { border-radius: 20px; padding: 18px 20px; box-shadow: none; }
@@ -299,6 +339,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .today-layout { display: grid; grid-template-columns: 1fr; gap: 14px; }
   .affirmation-hero { min-height: 680px; border-radius: 24px; background-position: 58% center; }
   .hero-content { min-height: 680px; padding: 42px 30px 36px; }
+  .affirmation-visual { width: 215px; top: 28px; right: 24px; opacity: 0.62; }
+  .visual-orbit { width: 195px; }
   .right-rail { grid-template-columns: 1fr 1fr; align-items: start; }
   .checkin-grid { align-content: start; }
   .stats-panel { grid-column: 1; }
@@ -311,9 +353,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .themes button:nth-child(-n + 2) { display: none; }
   .affirmation-hero { min-height: 650px; border-radius: 21px; background-position: 63% center; }
   .hero-content { min-height: 650px; padding: 35px 22px 24px; }
+  .affirmation-visual { width: 165px; top: 34px; right: -9px; opacity: 0.46; }
+  .visual-kicker, .visual-pulse { display: none; }
+  .visual-orbit { width: 160px; }
+  .visual-core { width: 64px; height: 64px; }
+  .visual-core svg { width: 34px; height: 34px; }
   .category { margin: 23px 0; }
   .affirmation-hero blockquote { font-size: clamp(45px, 13vw, 61px); line-height: 0.96; }
   .affirmation-hero .note { font-size: 14px; margin-top: 25px; }
+  .repeat-control { margin-top: 18px; }
   .affirmation-actions { gap: 8px; padding-top: 26px; }
   .icon-button { width: 46px; min-height: 46px; }
   .primary-button { min-width: 140px; min-height: 46px; }
@@ -322,6 +370,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .right-rail { grid-template-columns: 1fr; }
   .ritual-panel { padding: 24px 20px; border-radius: 21px; }
   .breathing-visual { width: 230px; }
+  .notification-times { grid-template-columns: 1fr; }
+  .notification-times > div { padding-inline: 9px; }
+  .notification-actions button { min-height: 37px; font-size: 9px; }
   .checkin-card { border-radius: 17px; }
   .stats-panel { grid-template-columns: 1fr; padding: 5px 20px; border-radius: 20px; }
   .stat { padding: 16px 0; border-right: 0; border-bottom: 1px solid var(--line); }
@@ -392,8 +443,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .volume-control { margin-top: 5px; gap: 6px; }
   .music-status { margin-top: 3px; font-size: 8px; }
   .practice-button { min-height: 40px; margin-top: 7px; border-radius: 10px; font-size: 10px; }
-  .reminder-row { margin-top: 6px; }
-  .reminder-row input, .reminder-row button { min-height: 28px; font-size: 8px; }
+  .notification-schedule { margin-top: 7px; padding: 7px; border-radius: 10px; }
+  .notification-times { margin-top: 6px; gap: 4px; }
+  .notification-times > div { padding: 5px 4px; border-radius: 7px; }
+  .notification-times small { display: none; }
+  .notification-actions { margin-top: 5px; gap: 4px; }
+  .notification-actions button { min-height: 25px; font-size: 7px; }
+  .notification-schedule > p { display: none; }
   .checkin-grid { gap: 8px; }
   .checkin-card { border-radius: 16px; padding: 12px 14px; }
   .checkin-card > p:not(.eyebrow) { margin: 6px 0 7px; font-size: 9px; }

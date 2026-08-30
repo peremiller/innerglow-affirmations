@@ -46,7 +46,7 @@ const scheduleImmediately = (callback) => {
   return Symbol("timer");
 };
 
-test("recites each affirmation three times and completes one wrapped cycle", async () => {
+test("recites each affirmation twice by default and completes one wrapped cycle", async () => {
   const speech = new FakeSpeechSynthesis();
   const selected = [];
   const progress = [];
@@ -71,14 +71,34 @@ test("recites each affirmation three times and completes one wrapped cycle", asy
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(speech.spoken, [
-    "Affirmation B", "Affirmation B", "Affirmation B",
-    "Affirmation C", "Affirmation C", "Affirmation C",
-    "Affirmation A", "Affirmation A", "Affirmation A",
+    "Affirmation B", "Affirmation B",
+    "Affirmation C", "Affirmation C",
+    "Affirmation A", "Affirmation A",
   ]);
-  assert.deepEqual(selected, ["b", "b", "b", "c", "c", "c", "a", "a", "a"]);
-  assert.deepEqual(completion, { totalAffirmations: 3, totalRecitations: 9 });
+  assert.deepEqual(selected, ["b", "b", "c", "c", "a", "a"]);
+  assert.deepEqual(completion, { totalAffirmations: 3, totalRecitations: 6 });
   assert.equal(progress.at(-1).status, "idle");
   assert.equal(narrator.isActive(), false);
+});
+
+test("supports one, two, or three recitations per affirmation", async () => {
+  for (const repeatCount of [1, 2, 3]) {
+    const speech = new FakeSpeechSynthesis();
+    let completion;
+    const narrator = createAffirmationNarrator({
+      speechSynthesis: speech,
+      Utterance: FakeUtterance,
+      onComplete: (result) => { completion = result; },
+      schedule: scheduleImmediately,
+      unschedule: () => {},
+    });
+
+    narrator.toggle([{ id: "a", text: "Affirmation A" }], "a", repeatCount);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(speech.spoken.length, repeatCount);
+    assert.deepEqual(completion, { totalAffirmations: 1, totalRecitations: repeatCount });
+  }
 });
 
 test("reliably resumes by restarting the current repetition after pause", () => {

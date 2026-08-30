@@ -18,11 +18,14 @@ import {
   Clock,
   DownloadSimple,
   Heart,
+  Heartbeat,
   House,
+  HandsPraying,
   Notebook as JournalIcon,
   Leaf,
   FlowerLotus as Lotus,
   MusicNotes,
+  MoonStars,
   Pause,
   Play,
   Plus,
@@ -36,11 +39,15 @@ import {
   SpeakerHigh,
   SpeakerSlash,
   Star,
+  SunHorizon,
   Trash,
+  TrendUp,
   Trophy,
+  Waves,
 } from "@phosphor-icons/react";
 import { AMBIENT_TRACKS, createAmbientSoundscape } from "./ambient-audio";
 import { createAffirmationNarrator } from "./affirmation-narrator";
+import { getDueNotificationSlot, manilaDateParts, NOTIFICATION_SLOTS } from "./notification-schedule";
 
 const CATEGORIES = ["Prosperity", "Confidence", "Health", "Career", "Love", "Gratitude", "Calm", "Sleep"];
 
@@ -122,6 +129,18 @@ const NAV = [
 
 const THEMES = ["aurora", "sunrise", "forest", "midnight"];
 
+const CATEGORY_VISUALS = {
+  Prosperity: { Icon: TrendUp, label: "Abundance in motion", a: "#ffd47f", b: "#70e2d2" },
+  Confidence: { Icon: SunHorizon, label: "Courage rising", a: "#ffbc72", b: "#ff7f9d" },
+  Health: { Icon: Heartbeat, label: "Whole-body care", a: "#71e0b3", b: "#76cfff" },
+  Career: { Icon: Briefcase, label: "Purposeful progress", a: "#73dbea", b: "#a58cff" },
+  Love: { Icon: Heart, label: "Warmth within", a: "#ff91b7", b: "#c493ff" },
+  Gratitude: { Icon: HandsPraying, label: "Notice the good", a: "#f7d27f", b: "#e99cff" },
+  Calm: { Icon: Waves, label: "Return to stillness", a: "#71dcd5", b: "#7ca9ff" },
+  Sleep: { Icon: MoonStars, label: "Rest and release", a: "#9aa9ff", b: "#c591ff" },
+  Mine: { Icon: Sparkle, label: "Words chosen by you", a: "#7ce9db", b: "#ae8cff" },
+};
+
 function readStore(key, fallback) {
   try {
     const value = window.localStorage.getItem(key);
@@ -137,6 +156,63 @@ function useStoredState(key, fallback) {
     window.localStorage.setItem(key, JSON.stringify(value));
   }, [key, value]);
   return [value, setValue];
+}
+
+async function showSystemNotification(title, options) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return false;
+  if ("serviceWorker" in navigator) {
+    const registration = await navigator.serviceWorker.ready;
+    await registration.showNotification(title, options);
+    return true;
+  }
+  new Notification(title, options);
+  return true;
+}
+
+function downloadNotificationCalendar() {
+  const { dateCompact } = manilaDateParts();
+  const events = NOTIFICATION_SLOTS.flatMap((slot) => {
+    const compactTime = slot.time.replace(":", "");
+    return [
+      "BEGIN:VEVENT",
+      `UID:innerglow-${slot.id}@vercel.app`,
+      `DTSTART;TZID=Asia/Manila:${dateCompact}T${compactTime}00`,
+      "RRULE:FREQ=DAILY",
+      `SUMMARY:InnerGlow · ${slot.label}`,
+      `DESCRIPTION:${slot.prompt} Open https://innerglow-affirmations.vercel.app/`,
+      "BEGIN:VALARM",
+      "ACTION:DISPLAY",
+      "TRIGGER:PT0M",
+      `DESCRIPTION:InnerGlow · ${slot.label}`,
+      "END:VALARM",
+      "END:VEVENT",
+    ];
+  });
+  const content = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//InnerGlow//Daily Glow Alerts//EN",
+    "CALSCALE:GREGORIAN",
+    "X-WR-CALNAME:InnerGlow Daily Glow Alerts",
+    "X-WR-TIMEZONE:Asia/Manila",
+    "BEGIN:VTIMEZONE",
+    "TZID:Asia/Manila",
+    "BEGIN:STANDARD",
+    "DTSTART:19700101T000000",
+    "TZOFFSETFROM:+0800",
+    "TZOFFSETTO:+0800",
+    "TZNAME:PHT",
+    "END:STANDARD",
+    "END:VTIMEZONE",
+    ...events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const url = URL.createObjectURL(new Blob([content], { type: "text/calendar" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "innerglow-daily-alerts.ics";
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function manilaDateKey(date = new Date()) {
@@ -185,29 +261,61 @@ function Header({ view, setView, theme, setTheme }) {
   );
 }
 
-function AffirmationHero({ affirmation, isSaved, narration, onPrevious, onNext, onListen, onSave, onShare }) {
+function AffirmationVisual({ category }) {
+  const visual = CATEGORY_VISUALS[category] || CATEGORY_VISUALS.Mine;
+  const VisualIcon = visual.Icon;
+  return (
+    <div className="affirmation-visual" style={{ "--visual-a": visual.a, "--visual-b": visual.b }} aria-hidden="true">
+      <span className="visual-kicker">{visual.label}</span>
+      <div className="visual-orbit">
+        <i className="orbit orbit-one" />
+        <i className="orbit orbit-two" />
+        <i className="orbit orbit-three" />
+        <span className="visual-core"><VisualIcon size={45} weight="duotone" /></span>
+        <span className="visual-star star-one" />
+        <span className="visual-star star-two" />
+        <span className="visual-star star-three" />
+      </div>
+      <div className="visual-pulse"><span /><span /><span /><span /><span /></div>
+    </div>
+  );
+}
+
+function AffirmationHero({ affirmation, isSaved, narration, repeatCount, onRepeatChange, onPrevious, onNext, onListen, onSave, onShare }) {
+  const CategoryIcon = (CATEGORY_VISUALS[affirmation.category] || CATEGORY_VISUALS.Mine).Icon;
   const narrating = narration.status !== "idle";
+  const activeRepeatCount = narration.repeatCount || repeatCount;
   const narrationLabel = narration.status === "speaking"
-    ? `Pause · ${narration.repetition}/3`
+    ? `Pause · ${narration.repetition}/${activeRepeatCount}`
     : narration.status === "paused"
-      ? `Resume · ${narration.repetition}/3`
+      ? `Resume · ${narration.repetition}/${activeRepeatCount}`
       : "Listen";
 
   return (
     <section className="affirmation-hero" aria-labelledby="affirmation-heading">
       <div className="hero-shade" />
+      <AffirmationVisual category={affirmation.category} />
       <div className="hero-content">
         <p className="eyebrow" id="affirmation-heading">Affirmation of the day</p>
-        <p className="category"><Briefcase size={22} /> {affirmation.category}</p>
+        <p className="category"><CategoryIcon size={22} weight="duotone" /> {affirmation.category}</p>
         <blockquote>“{affirmation.text}”</blockquote>
         <p className="note">{affirmation.note}</p>
+        <div className="repeat-control">
+          <span><SpeakerHigh size={17} /> Repeat each text</span>
+          <div role="group" aria-label="Number of times to repeat each affirmation">
+            {[1, 2, 3].map((value) => (
+              <button key={value} className={repeatCount === value ? "active" : ""} onClick={() => onRepeatChange(value)} aria-pressed={repeatCount === value}>{value}×</button>
+            ))}
+          </div>
+          <small>{repeatCount}× before moving to the next affirmation</small>
+        </div>
         <div className="affirmation-actions">
           <button className="icon-button" onClick={onPrevious} aria-label="Previous affirmation"><ArrowLeft size={20} /></button>
           <button
             className={`primary-button ${narrating ? "narrating" : ""}`}
             onClick={onListen}
             aria-label={narrating ? `${narrationLabel}, affirmation ${narration.cyclePosition + 1} of ${narration.total}` : "Listen to the complete affirmation cycle"}
-            title={narrating ? `Affirmation ${narration.cyclePosition + 1} of ${narration.total}` : "Recites every affirmation three times"}
+            title={narrating ? `Affirmation ${narration.cyclePosition + 1} of ${narration.total}` : `Recites every affirmation ${repeatCount} time${repeatCount === 1 ? "" : "s"}`}
           >
             {narration.status === "speaking" ? <Pause size={19} weight="fill" /> : <Play size={19} weight="fill" />}
             {narrationLabel}
@@ -222,7 +330,32 @@ function AffirmationHero({ affirmation, isSaved, narration, onPrevious, onNext, 
   );
 }
 
-function Ritual({ minutes, setMinutes, practiceDays, setPracticeDays, notify }) {
+function NotificationSchedule({ enabled, permission, onToggle, onDownload }) {
+  const blocked = permission === "denied";
+  return (
+    <section className="notification-schedule" aria-labelledby="notification-heading">
+      <div className="notification-heading">
+        <span id="notification-heading"><Bell size={16} weight="fill" /> Daily glow alerts</span>
+        <small className={enabled ? "enabled" : ""}>{blocked ? "Blocked" : enabled ? "On" : "Off"}</small>
+      </div>
+      <div className="notification-times">
+        {NOTIFICATION_SLOTS.map((slot, index) => (
+          <div key={slot.id}>
+            <i className={`time-dot time-dot-${index + 1}`} />
+            <span><strong>{slot.displayTime}</strong><small>{slot.label}</small></span>
+          </div>
+        ))}
+      </div>
+      <div className="notification-actions">
+        <button className={enabled ? "active" : ""} onClick={onToggle} disabled={blocked}><Bell size={15} /> {blocked ? "Allow in settings" : enabled ? "Alerts enabled" : "Enable alerts"}</button>
+        <button onClick={onDownload}><DownloadSimple size={15} /> Add to calendar</button>
+      </div>
+      <p>Manila time · Calendar alerts remain reliable when InnerGlow is closed.</p>
+    </section>
+  );
+}
+
+function Ritual({ minutes, setMinutes, practiceDays, setPracticeDays, notify, notifications }) {
   const [mode, setMode] = useState("breathe");
   const [duration, setDuration] = useState(3);
   const [remaining, setRemaining] = useState(duration * 60);
@@ -230,7 +363,6 @@ function Ritual({ minutes, setMinutes, practiceDays, setPracticeDays, notify }) 
   const [musicEnabled, setMusicEnabled] = useStoredState("igRitualMusicEnabled", true);
   const [musicTrack, setMusicTrack] = useStoredState("igRitualMusicTrack", "celestial");
   const [musicVolume, setMusicVolume] = useStoredState("igRitualMusicVolume", 45);
-  const [reminderTime, setReminderTime] = useStoredState("igReminderTime", "07:30");
   const completionLock = useRef(false);
   const ambientAudio = useRef(null);
 
@@ -311,24 +443,6 @@ function Ritual({ minutes, setMinutes, practiceDays, setPracticeDays, notify }) 
   const inhale = Math.floor(elapsed / 4) % 2 === 0;
   const phrase = mode === "breathe" ? (inhale ? "Inhale" : "Exhale") : (inhale ? "May I be well" : "May I live with ease");
 
-  const downloadReminder = () => {
-    const [hour, minute] = reminderTime.split(":");
-    const date = manilaDateKey().replaceAll("-", "");
-    const content = [
-      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//InnerGlow//EN", "BEGIN:VEVENT",
-      "UID:innerglow-daily@vercel.app", `DTSTART:${date}T${hour}${minute}00`, "RRULE:FREQ=DAILY",
-      "SUMMARY:InnerGlow daily affirmation and ritual",
-      "DESCRIPTION:Open https://innerglow-affirmations.vercel.app for your daily affirmation",
-      "BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:PT0M", "DESCRIPTION:InnerGlow", "END:VALARM",
-      "END:VEVENT", "END:VCALENDAR",
-    ].join("\r\n");
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([content], { type: "text/calendar" }));
-    link.download = "innerglow-daily.ics";
-    link.click();
-    notify("Daily reminder downloaded");
-  };
-
   return (
     <aside className="ritual-panel" aria-labelledby="ritual-heading">
       <div className="ritual-heading-row"><p className="eyebrow" id="ritual-heading">Daily ritual</p><span className="streak"><Sparkle size={15} weight="fill" /> 1 day</span></div>
@@ -363,7 +477,7 @@ function Ritual({ minutes, setMinutes, practiceDays, setPracticeDays, notify }) 
         <small className="music-status">{running && musicEnabled ? `${AMBIENT_TRACKS.find((track) => track.id === musicTrack)?.label} is playing softly` : "Music fades in when your practice begins"}</small>
       </div>
       <button className="practice-button" onClick={start}>{running ? <Pause size={20} weight="fill" /> : <Lotus size={21} />} {running ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} · Pause` : remaining < duration * 60 ? "Resume practice" : "Begin guided practice"}<ArrowRight size={20} /></button>
-      <div className="reminder-row"><Bell size={17} /><input aria-label="Daily reminder time" type="time" value={reminderTime} onChange={(event) => setReminderTime(event.target.value)} /><button onClick={downloadReminder}><DownloadSimple size={17} /> Reminder</button></div>
+      <NotificationSchedule {...notifications} />
     </aside>
   );
 }
@@ -484,9 +598,12 @@ export function App() {
   const [wishes, setWishes] = useStoredState("igWishes", []);
   const [practiceDays, setPracticeDays] = useStoredState("igDays", []);
   const [minutes, setMinutes] = useStoredState("igMinutes", 0);
+  const [repeatCount, setRepeatCount] = useStoredState("igRepeatCount", 2);
+  const [notificationsEnabled, setNotificationsEnabled] = useStoredState("igNotificationsEnabled", false);
   const [selectedId, setSelectedId] = useState("a20");
   const [toast, setToast] = useState("");
-  const [narration, setNarration] = useState({ status: "idle", repetition: 0, cyclePosition: 0, total: 0 });
+  const [notificationPermission, setNotificationPermission] = useState(() => "Notification" in window ? Notification.permission : "unsupported");
+  const [narration, setNarration] = useState({ status: "idle", repetition: 0, repeatCount: 2, cyclePosition: 0, total: 0 });
   const toastTimer = useRef();
   const narrator = useRef();
   const allAffirmations = useMemo(() => [...AFFIRMATIONS, ...custom], [custom]);
@@ -506,8 +623,34 @@ export function App() {
 
   const stopNarration = (message = "") => {
     narrator.current?.stop();
-    setNarration({ status: "idle", repetition: 0, cyclePosition: 0, total: 0 });
+    setNarration({ status: "idle", repetition: 0, repeatCount, cyclePosition: 0, total: 0 });
     if (message) notify(message);
+  };
+
+  const toggleNotifications = async () => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      notify("Daily browser alerts are off");
+      return;
+    }
+    if (!("Notification" in window)) {
+      notify("Browser alerts are not supported here · use Add to calendar");
+      return;
+    }
+    const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+    setNotificationPermission(permission);
+    if (permission === "granted") {
+      setNotificationsEnabled(true);
+      notify("Alerts set for 11:15 AM, 7:00 PM, and 12:15 AM");
+    } else {
+      setNotificationsEnabled(false);
+      notify("Allow notifications in your browser settings, or add them to your calendar");
+    }
+  };
+
+  const addNotificationsToCalendar = () => {
+    downloadNotificationCalendar();
+    notify("Three daily InnerGlow alerts downloaded");
   };
 
   useEffect(() => {
@@ -522,6 +665,32 @@ export function App() {
     return () => narrator.current?.destroy();
   }, []);
 
+  useEffect(() => {
+    if (!notificationsEnabled || notificationPermission !== "granted") return undefined;
+    const checkSchedule = async () => {
+      const slot = getDueNotificationSlot();
+      if (!slot) return;
+      const deliveryKey = `${slot.dateKey}:${slot.id}`;
+      if (window.localStorage.getItem("igLastDailyAlert") === deliveryKey) return;
+      window.localStorage.setItem("igLastDailyAlert", deliveryKey);
+      try {
+        await showSystemNotification(`InnerGlow · ${slot.label}`, {
+          body: `${slot.prompt} “${affirmation.text}”`,
+          icon: "/favicon.svg?v=3",
+          badge: "/favicon.svg?v=3",
+          tag: `innerglow-${slot.id}`,
+          renotify: true,
+          data: { url: "/" },
+        });
+      } catch {
+        window.localStorage.removeItem("igLastDailyAlert");
+      }
+    };
+    checkSchedule();
+    const interval = window.setInterval(checkSchedule, 15000);
+    return () => window.clearInterval(interval);
+  }, [affirmation.text, notificationPermission, notificationsEnabled]);
+
   const move = (direction) => {
     if (narrator.current?.isActive()) stopNarration();
     const index = allAffirmations.findIndex((item) => item.id === affirmation.id);
@@ -535,8 +704,14 @@ export function App() {
       return;
     }
     const starting = !narrator.current?.isActive();
-    narrator.current?.toggle(allAffirmations, affirmation.id);
-    if (starting) notify(`${allAffirmations.length} affirmations · three recitations each`);
+    narrator.current?.toggle(allAffirmations, affirmation.id, repeatCount);
+    if (starting) notify(`${allAffirmations.length} affirmations · ${repeatCount}× each`);
+  };
+
+  const changeRepeatCount = (value) => {
+    if (narrator.current?.isActive()) stopNarration();
+    setRepeatCount(value);
+    notify(`Each affirmation will repeat ${value}×`);
   };
 
   const toggleFavorite = (id) => {
@@ -570,8 +745,8 @@ export function App() {
       <Header view={view} setView={changeView} theme={theme} setTheme={setTheme} />
       <main>
         {view === "today" && <TodayView
-          hero={{ affirmation, isSaved: favorites.includes(affirmation.id), narration, onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
-          ritual={{ minutes, setMinutes, practiceDays, setPracticeDays, notify }}
+          hero={{ affirmation, isSaved: favorites.includes(affirmation.id), narration, repeatCount, onRepeatChange: changeRepeatCount, onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
+          ritual={{ minutes, setMinutes, practiceDays, setPracticeDays, notify, notifications: { enabled: notificationsEnabled, permission: notificationPermission, onToggle: toggleNotifications, onDownload: addNotificationsToCalendar } }}
           checkin={{ mood: moodToday, setMood: (value) => setMoods({ ...moods, [today]: moodToday === value ? 0 : value }), gratitude: gratitudeToday, setGratitude: (value) => setGratitudes({ ...gratitudes, [today]: value }) }}
           stats={{ minutes, savedCount: favorites.length, consistency: Math.round((consistency / 7) * 100) }}
         />}

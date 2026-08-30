@@ -10,14 +10,15 @@ A premium, offline-first wellness app in a **single `index.html`** — no build 
 
 Inspired by the best mobile wellness apps (I am, Affirmation, Gratitude, Daylio, Motivation, Loving Kindness, 100 wishes):
 
-- **Affirmation of the day** — deterministic daily pick from 48 affirmations across 8 categories (Prosperity, Confidence, Health, Career, Love, Gratitude, Calm, Sleep), with prev/next browsing and text-to-speech "Listen"
+- **Affirmation of the day** — deterministic daily pick from 48 affirmations across 8 categories, with responsive category visuals, prev/next browsing, and text-to-speech "Listen"
+- **Flexible spoken repetition** — choose 1×, 2×, or 3× for every affirmation before moving to the next; defaults to 2× and remembers your choice
 - **Library** — filter by category, ♥ favorites, and **write your own** affirmations
 - **Mood check-in** — Daylio-style 5-emoji daily mood with a supportive response and a 7-day mood chart
 - **Gratitude journal** — three entries a day with rotating prompts, plus full history
 - **Guided practice** — breathing orb with aura layers synced to inhale/exhale, in **Breathe** or **Loving-Kindness** (metta phrases) mode, 1–5 minutes
 - **Real streaks** — 🔥 streak, weekly consistency %, and mindful minutes computed from actual usage (local-timezone day keys)
 - **Share card** — renders the current affirmation onto a branded 1080×1080 PNG (native share sheet on mobile)
-- **Daily reminder** — downloads a repeating `.ics` calendar event
+- **Daily glow alerts** — browser notifications and a three-event calendar download for 11:15 AM, 7:00 PM, and 12:15 AM Manila time
 - **100 Wishes** — intentions list with check-off-when-true progress
 - **4 themes** — aurora, sunrise, forest, midnight
 

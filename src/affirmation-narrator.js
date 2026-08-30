@@ -1,4 +1,4 @@
-const IDLE_PROGRESS = { status: "idle", repetition: 0, cyclePosition: 0, total: 0 };
+const IDLE_PROGRESS = { status: "idle", repetition: 0, repeatCount: 2, cyclePosition: 0, total: 0 };
 
 export function createAffirmationNarrator({
   speechSynthesis,
@@ -21,12 +21,14 @@ export function createAffirmationNarrator({
     startIndex: 0,
     itemOffset: 0,
     repetition: 1,
+    repeatCount: 2,
   };
 
   const supported = Boolean(speechSynthesis && Utterance);
   const emitProgress = (status) => onProgress?.({
     status,
     repetition: run.repetition,
+    repeatCount: run.repeatCount,
     cyclePosition: run.itemOffset,
     total: run.sequence.length,
   });
@@ -38,7 +40,7 @@ export function createAffirmationNarrator({
 
   const finish = (token) => {
     if (!run.active || run.token !== token) return;
-    const totalRecitations = run.sequence.length * 3;
+    const totalRecitations = run.sequence.length * run.repeatCount;
     run.active = false;
     run.waiting = false;
     onProgress?.(IDLE_PROGRESS);
@@ -79,7 +81,7 @@ export function createAffirmationNarrator({
 
     utterance.onend = () => {
       if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
-      if (run.repetition < 3) {
+      if (run.repetition < run.repeatCount) {
         run.repetition += 1;
         emitProgress("speaking");
         scheduleNext(520);
@@ -103,10 +105,11 @@ export function createAffirmationNarrator({
     speechSynthesis.speak(utterance);
   };
 
-  const start = (sequence, startId) => {
+  const start = (sequence, startId, repeatCount = 2) => {
     if (!supported || !sequence?.length) return false;
     stop();
     const snapshot = [...sequence];
+    const normalizedRepeatCount = Math.min(3, Math.max(1, Number(repeatCount) || 2));
     run = {
       token: run.token + 1,
       active: true,
@@ -116,6 +119,7 @@ export function createAffirmationNarrator({
       startIndex: Math.max(0, snapshot.findIndex((item) => item.id === startId)),
       itemOffset: 0,
       repetition: 1,
+      repeatCount: normalizedRepeatCount,
     };
     speakCurrent();
     return true;
@@ -151,8 +155,8 @@ export function createAffirmationNarrator({
     onProgress?.(IDLE_PROGRESS);
   }
 
-  const toggle = (sequence, startId) => {
-    if (!run.active) return start(sequence, startId);
+  const toggle = (sequence, startId, repeatCount = 2) => {
+    if (!run.active) return start(sequence, startId, repeatCount);
     return run.paused ? resume() : pause();
   };
 
