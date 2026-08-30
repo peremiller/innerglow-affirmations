@@ -7,11 +7,18 @@ export function createAffirmationNarrator({
   onProgress,
   onComplete,
   onError,
-  schedule = (callback, delay) => window.setTimeout(callback, delay),
-  unschedule = (timer) => window.clearTimeout(timer),
+  schedule = (callback, delay) => globalThis.setTimeout(callback, delay),
+  unschedule = (timer) => globalThis.clearTimeout(timer),
+  watch = (callback, delay) => globalThis.setInterval(callback, delay),
+  unwatch = (timer) => globalThis.clearInterval(timer),
+  visibilityTarget = typeof document === "undefined" ? null : document,
+  now = () => Date.now(),
 }) {
   let timer;
+  let watchdog;
   let utteranceVersion = 0;
+  let utteranceStartedAt = 0;
+  let recoveryAttempts = 0;
   let run = {
     token: 0,
     active: false,
@@ -38,11 +45,17 @@ export function createAffirmationNarrator({
     timer = undefined;
   };
 
+  const clearWatchdog = () => {
+    if (watchdog !== undefined) unwatch(watchdog);
+    watchdog = undefined;
+  };
+
   const finish = (token) => {
     if (!run.active || run.token !== token) return;
     const totalRecitations = run.sequence.length * run.repeatCount;
     run.active = false;
     run.waiting = false;
+    clearWatchdog();
     onProgress?.(IDLE_PROGRESS);
     onComplete?.({ totalAffirmations: run.sequence.length, totalRecitations });
   };
@@ -54,6 +67,60 @@ export function createAffirmationNarrator({
       || null;
   };
 
+  const scheduleCurrent = (delay) => {
+    const token = run.token;
+    clearScheduledStep();
+    run.waiting = true;
+    timer = schedule(() => {
+      timer = undefined;
+      if (!run.active || run.token !== token || run.paused) return;
+      run.waiting = false;
+      speakCurrent();
+    }, delay);
+  };
+
+  const advance = (token) => {
+    if (!run.active || run.token !== token || run.paused) return;
+    recoveryAttempts = 0;
+    if (run.repetition < run.repeatCount) {
+      run.repetition += 1;
+      emitProgress("speaking");
+      scheduleCurrent(520);
+      return;
+    }
+    if (run.itemOffset + 1 < run.sequence.length) {
+      run.itemOffset += 1;
+      run.repetition = 1;
+      scheduleCurrent(760);
+      return;
+    }
+    finish(token);
+  };
+
+  const recoverCurrent = (token, version, error) => {
+    if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
+    clearWatchdog();
+    utteranceVersion += 1;
+    speechSynthesis.cancel?.();
+    if (recoveryAttempts < 3) {
+      recoveryAttempts += 1;
+      scheduleCurrent(240);
+      return;
+    }
+    recoveryAttempts = 0;
+    onError?.(error || new Error("The browser speech engine stopped unexpectedly."));
+    advance(token);
+  };
+
+  const keepSpeechAlive = (token, version) => {
+    if (!run.active || run.token !== token || utteranceVersion !== version || run.paused || run.waiting) return;
+    if (speechSynthesis.paused) speechSynthesis.resume?.();
+    const engineIsIdle = speechSynthesis.speaking === false && speechSynthesis.pending === false;
+    if (engineIsIdle && now() - utteranceStartedAt > 1800) {
+      recoverCurrent(token, version);
+    }
+  };
+
   const speakCurrent = () => {
     if (!run.active || run.paused || !run.sequence.length) return;
     const token = run.token;
@@ -61,6 +128,7 @@ export function createAffirmationNarrator({
     const itemIndex = (run.startIndex + run.itemOffset) % run.sequence.length;
     const item = run.sequence[itemIndex];
     run.waiting = false;
+    utteranceStartedAt = now();
     onAffirmation?.(item);
     emitProgress("speaking");
 
@@ -69,40 +137,25 @@ export function createAffirmationNarrator({
     utterance.rate = 0.78;
     utterance.pitch = 0.96;
 
-    const scheduleNext = (delay) => {
-      if (!run.active || run.token !== token || utteranceVersion !== version) return;
-      run.waiting = true;
-      timer = schedule(() => {
-        timer = undefined;
-        if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
-        speakCurrent();
-      }, delay);
-    };
-
     utterance.onend = () => {
       if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
-      if (run.repetition < run.repeatCount) {
-        run.repetition += 1;
-        emitProgress("speaking");
-        scheduleNext(520);
-        return;
-      }
-      if (run.itemOffset + 1 < run.sequence.length) {
-        run.itemOffset += 1;
-        run.repetition = 1;
-        scheduleNext(760);
-        return;
-      }
-      finish(token);
+      clearWatchdog();
+      advance(token);
     };
 
     utterance.onerror = (event) => {
-      if (!run.active || run.token !== token || utteranceVersion !== version || ["canceled", "interrupted"].includes(event.error)) return;
-      stop();
-      onError?.(event);
+      if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
+      recoverCurrent(token, version, event);
+    };
+
+    utterance.onpause = () => {
+      if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
+      speechSynthesis.resume?.();
     };
 
     speechSynthesis.speak(utterance);
+    clearWatchdog();
+    watchdog = watch(() => keepSpeechAlive(token, version), 1000);
   };
 
   const start = (sequence, startId, repeatCount = 2) => {
@@ -130,6 +183,7 @@ export function createAffirmationNarrator({
     run.paused = true;
     run.waiting = true;
     clearScheduledStep();
+    clearWatchdog();
     utteranceVersion += 1;
     speechSynthesis.cancel();
     emitProgress("paused");
@@ -150,6 +204,7 @@ export function createAffirmationNarrator({
     run.paused = false;
     run.waiting = false;
     clearScheduledStep();
+    clearWatchdog();
     utteranceVersion += 1;
     speechSynthesis?.cancel?.();
     onProgress?.(IDLE_PROGRESS);
@@ -160,11 +215,24 @@ export function createAffirmationNarrator({
     return run.paused ? resume() : pause();
   };
 
+  const handleVisibilityChange = () => {
+    if (!run.active || run.paused || visibilityTarget?.visibilityState === "hidden") return;
+    speechSynthesis.resume?.();
+    keepSpeechAlive(run.token, utteranceVersion);
+  };
+
+  visibilityTarget?.addEventListener?.("visibilitychange", handleVisibilityChange);
+
+  const destroy = () => {
+    stop();
+    visibilityTarget?.removeEventListener?.("visibilitychange", handleVisibilityChange);
+  };
+
   return {
     isSupported: () => supported,
     isActive: () => run.active,
     toggle,
     stop,
-    destroy: stop,
+    destroy,
   };
 }
