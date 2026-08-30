@@ -298,7 +298,7 @@ function formatCountdown(totalSeconds = 0) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function AffirmationHero({ affirmation, isSaved, narration, repeatCount, onRepeatChange, onPrevious, onNext, onListen, onSave, onShare }) {
+function AffirmationHero({ affirmation, isSaved, narration, repeatCount, sessionMinutes, onRepeatChange, onPrevious, onNext, onListen, onSave, onShare }) {
   const CategoryIcon = (CATEGORY_VISUALS[affirmation.category] || CATEGORY_VISUALS.Mine).Icon;
   const narrating = narration.status !== "idle";
   const activeRepeatCount = narration.repeatCount || repeatCount;
@@ -316,7 +316,32 @@ function AffirmationHero({ affirmation, isSaved, narration, repeatCount, onRepea
       <div className="hero-shade" />
       <AffirmationVisual category={affirmation.category} />
       <div className="hero-content">
-        <p className="eyebrow" id="affirmation-heading">Affirmation of the day</p>
+        <div className="hero-topline">
+          <p className="eyebrow" id="affirmation-heading">Affirmation of the day</p>
+          <div className="audio-quick-controls">
+            <button
+              className={`primary-button ${narrating ? "narrating" : ""}`}
+              onClick={onListen}
+              aria-label={narrating ? `${narrationLabel}, affirmation ${narration.cyclePosition + 1} of ${narration.total}` : `Play ${sessionMinutes}-minute affirmation session`}
+              title={narrating ? `Affirmation ${narration.cyclePosition + 1} of ${narration.total}` : `${sessionMinutes}-minute session · ${repeatCount} time${repeatCount === 1 ? "" : "s"} each`}
+            >
+              {narration.status === "speaking" ? <Pause size={19} weight="fill" /> : <Play size={19} weight="fill" />}
+              {narrationLabel}
+            </button>
+            {narrating && (
+              <output
+                className={`audio-countdown ${narration.status === "paused" ? "paused" : ""}`}
+                style={{ "--countdown-progress": `${countdownProgress * 3.6}deg` }}
+                role="timer"
+                aria-live="off"
+                aria-label={`${formatCountdown(narration.remainingSeconds)} remaining in the selected session`}
+              >
+                <span className="countdown-dial"><Clock size={18} weight="duotone" /></span>
+                <span><strong>{formatCountdown(narration.remainingSeconds)}</strong><small>{narration.status === "paused" ? "Paused" : `${sessionMinutes}-minute session`}</small></span>
+              </output>
+            )}
+          </div>
+        </div>
         <p className="category"><CategoryIcon size={22} weight="duotone" /> {affirmation.category}</p>
         <blockquote>“{affirmation.text}”</blockquote>
         <p className="note">{affirmation.note}</p>
@@ -327,31 +352,10 @@ function AffirmationHero({ affirmation, isSaved, narration, repeatCount, onRepea
               <button key={value} className={repeatCount === value ? "active" : ""} onClick={() => onRepeatChange(value)} aria-pressed={repeatCount === value}>{value}×</button>
             ))}
           </div>
-          <small>{repeatCount}× before moving to the next affirmation</small>
+          <small>{sessionMinutes}-minute session · {repeatCount}× before moving to the next affirmation</small>
         </div>
         <div className="affirmation-actions">
           <button className="icon-button" onClick={onPrevious} aria-label="Previous affirmation"><ArrowLeft size={20} /></button>
-          <button
-            className={`primary-button ${narrating ? "narrating" : ""}`}
-            onClick={onListen}
-            aria-label={narrating ? `${narrationLabel}, affirmation ${narration.cyclePosition + 1} of ${narration.total}` : "Listen to the complete affirmation cycle"}
-            title={narrating ? `Affirmation ${narration.cyclePosition + 1} of ${narration.total}` : `Recites every affirmation ${repeatCount} time${repeatCount === 1 ? "" : "s"}`}
-          >
-            {narration.status === "speaking" ? <Pause size={19} weight="fill" /> : <Play size={19} weight="fill" />}
-            {narrationLabel}
-          </button>
-          {narrating && (
-            <output
-              className={`audio-countdown ${narration.status === "paused" ? "paused" : ""}`}
-              style={{ "--countdown-progress": `${countdownProgress * 3.6}deg` }}
-              role="timer"
-              aria-live="off"
-              aria-label={`Approximately ${formatCountdown(narration.remainingSeconds)} remaining`}
-            >
-              <span className="countdown-dial"><Clock size={18} weight="duotone" /></span>
-              <span><strong>{formatCountdown(narration.remainingSeconds)}</strong><small>{narration.status === "paused" ? "Paused" : "Approx. time left"}</small></span>
-            </output>
-          )}
           <button className="icon-button" onClick={onNext} aria-label="Next affirmation"><ArrowRight size={20} /></button>
           <span className="action-divider" />
           <button className={`text-button ${isSaved ? "selected" : ""}`} onClick={onSave}><Heart size={22} weight={isSaved ? "fill" : "regular"} /> {isSaved ? "Saved" : "Save"}</button>
@@ -387,9 +391,8 @@ function NotificationSchedule({ enabled, permission, onToggle, onDownload }) {
   );
 }
 
-function Ritual({ minutes, setMinutes, practiceDays, setPracticeDays, notify, notifications }) {
+function Ritual({ duration, onDurationChange, minutes, setMinutes, practiceDays, setPracticeDays, notify, notifications }) {
   const [mode, setMode] = useState("breathe");
-  const [duration, setDuration] = useState(3);
   const [remaining, setRemaining] = useState(duration * 60);
   const [running, setRunning] = useState(false);
   const [musicEnabled, setMusicEnabled] = useStoredState("igRitualMusicEnabled", true);
@@ -449,7 +452,7 @@ function Ritual({ minutes, setMinutes, practiceDays, setPracticeDays, notify, no
   };
 
   const chooseDuration = (value) => {
-    setDuration(value);
+    onDurationChange(value);
     setRemaining(value * 60);
     setRunning(false);
     stopMusic();
@@ -631,6 +634,7 @@ export function App() {
   const [practiceDays, setPracticeDays] = useStoredState("igDays", []);
   const [minutes, setMinutes] = useStoredState("igMinutes", 0);
   const [repeatCount, setRepeatCount] = useStoredState("igRepeatCount", 2);
+  const [sessionMinutes, setSessionMinutes] = useStoredState("igSessionMinutes", 3);
   const [notificationsEnabled, setNotificationsEnabled] = useStoredState("igNotificationsEnabled", false);
   const [selectedId, setSelectedId] = useState("a20");
   const [toast, setToast] = useState("");
@@ -691,7 +695,7 @@ export function App() {
       Utterance: window.SpeechSynthesisUtterance,
       onAffirmation: (item) => setSelectedId(item.id),
       onProgress: setNarration,
-      onComplete: ({ totalRecitations }) => notify(`Full cycle complete · ${totalRecitations} recitations`),
+      onComplete: ({ totalRecitations }) => notify(`Affirmation session complete · ${totalRecitations} recitations`),
       onError: () => notify("Narration was interrupted by this browser"),
     });
     return () => narrator.current?.destroy();
@@ -736,14 +740,20 @@ export function App() {
       return;
     }
     const starting = !narrator.current?.isActive();
-    narrator.current?.toggle(allAffirmations, affirmation.id, repeatCount);
-    if (starting) notify(`${allAffirmations.length} affirmations · ${repeatCount}× each`);
+    narrator.current?.toggle(allAffirmations, affirmation.id, repeatCount, sessionMinutes);
+    if (starting) notify(`${sessionMinutes}-minute affirmation session · ${repeatCount}× each`);
   };
 
   const changeRepeatCount = (value) => {
     if (narrator.current?.isActive()) stopNarration();
     setRepeatCount(value);
     notify(`Each affirmation will repeat ${value}×`);
+  };
+
+  const changeSessionMinutes = (value) => {
+    if (narrator.current?.isActive()) stopNarration();
+    setSessionMinutes(value);
+    notify(`Affirmation audio set to ${value} minute${value === 1 ? "" : "s"}`);
   };
 
   const toggleFavorite = (id) => {
@@ -777,8 +787,8 @@ export function App() {
       <Header view={view} setView={changeView} theme={theme} setTheme={setTheme} />
       <main>
         {view === "today" && <TodayView
-          hero={{ affirmation, isSaved: favorites.includes(affirmation.id), narration, repeatCount, onRepeatChange: changeRepeatCount, onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
-          ritual={{ minutes, setMinutes, practiceDays, setPracticeDays, notify, notifications: { enabled: notificationsEnabled, permission: notificationPermission, onToggle: toggleNotifications, onDownload: addNotificationsToCalendar } }}
+          hero={{ affirmation, isSaved: favorites.includes(affirmation.id), narration, repeatCount, sessionMinutes, onRepeatChange: changeRepeatCount, onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
+          ritual={{ duration: sessionMinutes, onDurationChange: changeSessionMinutes, minutes, setMinutes, practiceDays, setPracticeDays, notify, notifications: { enabled: notificationsEnabled, permission: notificationPermission, onToggle: toggleNotifications, onDownload: addNotificationsToCalendar } }}
           checkin={{ mood: moodToday, setMood: (value) => setMoods({ ...moods, [today]: moodToday === value ? 0 : value }), gratitude: gratitudeToday, setGratitude: (value) => setGratitudes({ ...gratitudes, [today]: value }) }}
           stats={{ minutes, savedCount: favorites.length, consistency: Math.round((consistency / 7) * 100) }}
         />}

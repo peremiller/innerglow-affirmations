@@ -148,6 +148,37 @@ test("emits a visible remaining-time countdown and freezes it while paused", () 
   narrator.destroy();
 });
 
+test("uses the selected session duration and stops audio when the timer ends", () => {
+  const speech = new FakeSpeechSynthesis({ autoEnd: false });
+  const states = [];
+  let countdownTick;
+  let completion;
+  let currentTime = 0;
+  const narrator = createAffirmationNarrator({
+    speechSynthesis: speech,
+    Utterance: FakeUtterance,
+    onProgress: (state) => states.push(state),
+    onComplete: (result) => { completion = result; },
+    countdownWatch: (callback) => { countdownTick = callback; return Symbol("countdown"); },
+    countdownUnwatch: () => {},
+    visibilityTarget: null,
+    now: () => currentTime,
+  });
+
+  narrator.toggle([{ id: "a", text: "Affirmation A" }], "a", 1, 1);
+  assert.equal(states.at(-1).totalSeconds, 60);
+
+  currentTime = 30000;
+  countdownTick();
+  assert.equal(states.at(-1).remainingSeconds, 30);
+
+  currentTime = 60000;
+  countdownTick();
+  assert.equal(states.at(-1).status, "idle");
+  assert.equal(narrator.isActive(), false);
+  assert.deepEqual(completion, { totalAffirmations: 1, totalRecitations: 0 });
+});
+
 test("reliably resumes by restarting the current repetition after pause", () => {
   const speech = new FakeSpeechSynthesis({ autoEnd: false });
   const states = [];

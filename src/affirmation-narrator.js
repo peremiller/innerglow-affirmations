@@ -56,6 +56,8 @@ export function createAffirmationNarrator({
     totalMs: 0,
     remainingAtUtteranceStart: 0,
     currentUtteranceMs: 0,
+    timeBounded: false,
+    completedRecitations: 0,
   };
 
   const supported = Boolean(speechSynthesis && Utterance);
@@ -98,6 +100,7 @@ export function createAffirmationNarrator({
 
   const startCountdown = () => {
     clearCountdown();
+    const token = run.token;
     countdownLastTick = now();
     countdownLastSecond = Math.ceil(run.remainingMs / 1000);
     countdownTimer = countdownWatch(() => {
@@ -108,16 +111,19 @@ export function createAffirmationNarrator({
         countdownLastSecond = nextSecond;
         emitProgress("speaking");
       }
+      if (run.timeBounded && run.remainingMs <= 0) finish(token);
     }, 250);
   };
 
   const finish = (token) => {
     if (!run.active || run.token !== token) return;
-    const totalRecitations = run.sequence.length * run.repeatCount;
+    const totalRecitations = run.completedRecitations;
     run.active = false;
     run.waiting = false;
     clearWatchdog();
     clearCountdown();
+    utteranceVersion += 1;
+    speechSynthesis.cancel?.();
     onProgress?.(IDLE_PROGRESS);
     onComplete?.({ totalAffirmations: run.sequence.length, totalRecitations });
   };
@@ -144,7 +150,8 @@ export function createAffirmationNarrator({
   const advance = (token) => {
     if (!run.active || run.token !== token || run.paused) return;
     consumeCountdown();
-    run.remainingMs = Math.max(0, run.remainingAtUtteranceStart - run.currentUtteranceMs);
+    if (!run.timeBounded) run.remainingMs = Math.max(0, run.remainingAtUtteranceStart - run.currentUtteranceMs);
+    run.completedRecitations += 1;
     recoveryAttempts = 0;
     if (run.repetition < run.repeatCount) {
       run.repetition += 1;
@@ -158,13 +165,19 @@ export function createAffirmationNarrator({
       scheduleCurrent(760);
       return;
     }
+    if (run.timeBounded && run.remainingMs > 0) {
+      run.itemOffset = 0;
+      run.repetition = 1;
+      scheduleCurrent(760);
+      return;
+    }
     finish(token);
   };
 
   const recoverCurrent = (token, version, error) => {
     if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
     clearWatchdog();
-    run.remainingMs = Math.max(run.remainingMs, run.remainingAtUtteranceStart);
+    if (!run.timeBounded) run.remainingMs = Math.max(run.remainingMs, run.remainingAtUtteranceStart);
     countdownLastTick = now();
     utteranceVersion += 1;
     speechSynthesis.cancel?.();
@@ -226,13 +239,17 @@ export function createAffirmationNarrator({
     watchdog = watch(() => keepSpeechAlive(token, version), 1000);
   };
 
-  const start = (sequence, startId, repeatCount = 2) => {
+  const start = (sequence, startId, repeatCount = 2, durationMinutes) => {
     if (!supported || !sequence?.length) return false;
     stop();
     const snapshot = [...sequence];
     const normalizedRepeatCount = Math.min(3, Math.max(1, Number(repeatCount) || 2));
     const startIndex = Math.max(0, snapshot.findIndex((item) => item.id === startId));
-    const totalMs = estimateCycleMs(snapshot, startIndex, normalizedRepeatCount);
+    const normalizedDuration = Number(durationMinutes);
+    const timeBounded = Number.isFinite(normalizedDuration) && normalizedDuration > 0;
+    const totalMs = timeBounded
+      ? Math.round(normalizedDuration * 60 * 1000)
+      : estimateCycleMs(snapshot, startIndex, normalizedRepeatCount);
     run = {
       token: run.token + 1,
       active: true,
@@ -247,6 +264,8 @@ export function createAffirmationNarrator({
       totalMs,
       remainingAtUtteranceStart: totalMs,
       currentUtteranceMs: 0,
+      timeBounded,
+      completedRecitations: 0,
     };
     startCountdown();
     speakCurrent();
@@ -257,7 +276,7 @@ export function createAffirmationNarrator({
     if (!run.active || run.paused) return false;
     const wasWaiting = run.waiting;
     consumeCountdown();
-    if (!wasWaiting) run.remainingMs = Math.max(run.remainingMs, run.remainingAtUtteranceStart);
+    if (!wasWaiting && !run.timeBounded) run.remainingMs = Math.max(run.remainingMs, run.remainingAtUtteranceStart);
     run.paused = true;
     run.waiting = true;
     clearScheduledStep();
@@ -291,8 +310,8 @@ export function createAffirmationNarrator({
     onProgress?.(IDLE_PROGRESS);
   }
 
-  const toggle = (sequence, startId, repeatCount = 2) => {
-    if (!run.active) return start(sequence, startId, repeatCount);
+  const toggle = (sequence, startId, repeatCount = 2, durationMinutes) => {
+    if (!run.active) return start(sequence, startId, repeatCount, durationMinutes);
     return run.paused ? resume() : pause();
   };
 
