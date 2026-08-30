@@ -1,4 +1,22 @@
-const IDLE_PROGRESS = { status: "idle", repetition: 0, repeatCount: 2, cyclePosition: 0, total: 0 };
+const IDLE_PROGRESS = { status: "idle", repetition: 0, repeatCount: 2, cyclePosition: 0, total: 0, remainingSeconds: 0, totalSeconds: 0 };
+
+const SPEECH_RATE = 0.78;
+
+function estimateUtteranceMs(text) {
+  const wordCount = String(text).trim().split(/\s+/).filter(Boolean).length;
+  const punctuationPauses = (String(text).match(/[,.!?;:—]/g) || []).length * 110;
+  return Math.max(1800, Math.ceil((wordCount / (2.8 * SPEECH_RATE)) * 1000 + punctuationPauses));
+}
+
+function estimateCycleMs(sequence, startIndex, repeatCount) {
+  const ordered = sequence.map((_, offset) => sequence[(startIndex + offset) % sequence.length]);
+  return ordered.reduce((total, item, itemIndex) => {
+    const speech = estimateUtteranceMs(item.text) * repeatCount;
+    const repetitionGaps = Math.max(0, repeatCount - 1) * 520;
+    const itemGap = itemIndex < ordered.length - 1 ? 760 : 0;
+    return total + speech + repetitionGaps + itemGap;
+  }, 0);
+}
 
 export function createAffirmationNarrator({
   speechSynthesis,
@@ -11,11 +29,16 @@ export function createAffirmationNarrator({
   unschedule = (timer) => globalThis.clearTimeout(timer),
   watch = (callback, delay) => globalThis.setInterval(callback, delay),
   unwatch = (timer) => globalThis.clearInterval(timer),
+  countdownWatch = (callback, delay) => globalThis.setInterval(callback, delay),
+  countdownUnwatch = (timer) => globalThis.clearInterval(timer),
   visibilityTarget = typeof document === "undefined" ? null : document,
   now = () => Date.now(),
 }) {
   let timer;
   let watchdog;
+  let countdownTimer;
+  let countdownLastTick;
+  let countdownLastSecond;
   let utteranceVersion = 0;
   let utteranceStartedAt = 0;
   let recoveryAttempts = 0;
@@ -29,6 +52,10 @@ export function createAffirmationNarrator({
     itemOffset: 0,
     repetition: 1,
     repeatCount: 2,
+    remainingMs: 0,
+    totalMs: 0,
+    remainingAtUtteranceStart: 0,
+    currentUtteranceMs: 0,
   };
 
   const supported = Boolean(speechSynthesis && Utterance);
@@ -38,6 +65,8 @@ export function createAffirmationNarrator({
     repeatCount: run.repeatCount,
     cyclePosition: run.itemOffset,
     total: run.sequence.length,
+    remainingSeconds: Math.max(0, Math.ceil(run.remainingMs / 1000)),
+    totalSeconds: Math.max(0, Math.ceil(run.totalMs / 1000)),
   });
 
   const clearScheduledStep = () => {
@@ -50,12 +79,45 @@ export function createAffirmationNarrator({
     watchdog = undefined;
   };
 
+  const clearCountdown = () => {
+    if (countdownTimer !== undefined) countdownUnwatch(countdownTimer);
+    countdownTimer = undefined;
+    countdownLastTick = undefined;
+  };
+
+  const consumeCountdown = () => {
+    const currentTime = now();
+    if (countdownLastTick === undefined) {
+      countdownLastTick = currentTime;
+      return;
+    }
+    const elapsed = Math.max(0, currentTime - countdownLastTick);
+    run.remainingMs = Math.max(0, run.remainingMs - elapsed);
+    countdownLastTick = currentTime;
+  };
+
+  const startCountdown = () => {
+    clearCountdown();
+    countdownLastTick = now();
+    countdownLastSecond = Math.ceil(run.remainingMs / 1000);
+    countdownTimer = countdownWatch(() => {
+      if (!run.active || run.paused) return;
+      consumeCountdown();
+      const nextSecond = Math.ceil(run.remainingMs / 1000);
+      if (nextSecond !== countdownLastSecond) {
+        countdownLastSecond = nextSecond;
+        emitProgress("speaking");
+      }
+    }, 250);
+  };
+
   const finish = (token) => {
     if (!run.active || run.token !== token) return;
     const totalRecitations = run.sequence.length * run.repeatCount;
     run.active = false;
     run.waiting = false;
     clearWatchdog();
+    clearCountdown();
     onProgress?.(IDLE_PROGRESS);
     onComplete?.({ totalAffirmations: run.sequence.length, totalRecitations });
   };
@@ -81,6 +143,8 @@ export function createAffirmationNarrator({
 
   const advance = (token) => {
     if (!run.active || run.token !== token || run.paused) return;
+    consumeCountdown();
+    run.remainingMs = Math.max(0, run.remainingAtUtteranceStart - run.currentUtteranceMs);
     recoveryAttempts = 0;
     if (run.repetition < run.repeatCount) {
       run.repetition += 1;
@@ -100,6 +164,8 @@ export function createAffirmationNarrator({
   const recoverCurrent = (token, version, error) => {
     if (!run.active || run.token !== token || utteranceVersion !== version || run.paused) return;
     clearWatchdog();
+    run.remainingMs = Math.max(run.remainingMs, run.remainingAtUtteranceStart);
+    countdownLastTick = now();
     utteranceVersion += 1;
     speechSynthesis.cancel?.();
     if (recoveryAttempts < 3) {
@@ -129,12 +195,14 @@ export function createAffirmationNarrator({
     const item = run.sequence[itemIndex];
     run.waiting = false;
     utteranceStartedAt = now();
+    run.remainingAtUtteranceStart = run.remainingMs;
+    run.currentUtteranceMs = estimateUtteranceMs(item.text);
     onAffirmation?.(item);
     emitProgress("speaking");
 
     const utterance = new Utterance(item.text);
     utterance.voice = chooseVoice();
-    utterance.rate = 0.78;
+    utterance.rate = SPEECH_RATE;
     utterance.pitch = 0.96;
 
     utterance.onend = () => {
@@ -163,27 +231,38 @@ export function createAffirmationNarrator({
     stop();
     const snapshot = [...sequence];
     const normalizedRepeatCount = Math.min(3, Math.max(1, Number(repeatCount) || 2));
+    const startIndex = Math.max(0, snapshot.findIndex((item) => item.id === startId));
+    const totalMs = estimateCycleMs(snapshot, startIndex, normalizedRepeatCount);
     run = {
       token: run.token + 1,
       active: true,
       paused: false,
       waiting: false,
       sequence: snapshot,
-      startIndex: Math.max(0, snapshot.findIndex((item) => item.id === startId)),
+      startIndex,
       itemOffset: 0,
       repetition: 1,
       repeatCount: normalizedRepeatCount,
+      remainingMs: totalMs,
+      totalMs,
+      remainingAtUtteranceStart: totalMs,
+      currentUtteranceMs: 0,
     };
+    startCountdown();
     speakCurrent();
     return true;
   };
 
   const pause = () => {
     if (!run.active || run.paused) return false;
+    const wasWaiting = run.waiting;
+    consumeCountdown();
+    if (!wasWaiting) run.remainingMs = Math.max(run.remainingMs, run.remainingAtUtteranceStart);
     run.paused = true;
     run.waiting = true;
     clearScheduledStep();
     clearWatchdog();
+    clearCountdown();
     utteranceVersion += 1;
     speechSynthesis.cancel();
     emitProgress("paused");
@@ -194,6 +273,7 @@ export function createAffirmationNarrator({
     if (!run.active || !run.paused) return false;
     run.paused = false;
     run.waiting = false;
+    startCountdown();
     speakCurrent();
     return true;
   };
@@ -205,6 +285,7 @@ export function createAffirmationNarrator({
     run.waiting = false;
     clearScheduledStep();
     clearWatchdog();
+    clearCountdown();
     utteranceVersion += 1;
     speechSynthesis?.cancel?.();
     onProgress?.(IDLE_PROGRESS);

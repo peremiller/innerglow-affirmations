@@ -291,6 +291,13 @@ function AffirmationVisual({ category }) {
   );
 }
 
+function formatCountdown(totalSeconds = 0) {
+  const safeSeconds = Math.max(0, Math.ceil(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 function AffirmationHero({ affirmation, isSaved, narration, repeatCount, onRepeatChange, onPrevious, onNext, onListen, onSave, onShare }) {
   const CategoryIcon = (CATEGORY_VISUALS[affirmation.category] || CATEGORY_VISUALS.Mine).Icon;
   const narrating = narration.status !== "idle";
@@ -300,6 +307,9 @@ function AffirmationHero({ affirmation, isSaved, narration, repeatCount, onRepea
     : narration.status === "paused"
       ? `Resume · ${narration.repetition}/${activeRepeatCount}`
       : "Listen";
+  const countdownProgress = narration.totalSeconds > 0
+    ? Math.min(100, Math.max(0, ((narration.totalSeconds - narration.remainingSeconds) / narration.totalSeconds) * 100))
+    : 0;
 
   return (
     <section className="affirmation-hero" aria-labelledby="affirmation-heading">
@@ -330,6 +340,18 @@ function AffirmationHero({ affirmation, isSaved, narration, repeatCount, onRepea
             {narration.status === "speaking" ? <Pause size={19} weight="fill" /> : <Play size={19} weight="fill" />}
             {narrationLabel}
           </button>
+          {narrating && (
+            <output
+              className={`audio-countdown ${narration.status === "paused" ? "paused" : ""}`}
+              style={{ "--countdown-progress": `${countdownProgress * 3.6}deg` }}
+              role="timer"
+              aria-live="off"
+              aria-label={`Approximately ${formatCountdown(narration.remainingSeconds)} remaining`}
+            >
+              <span className="countdown-dial"><Clock size={18} weight="duotone" /></span>
+              <span><strong>{formatCountdown(narration.remainingSeconds)}</strong><small>{narration.status === "paused" ? "Paused" : "Approx. time left"}</small></span>
+            </output>
+          )}
           <button className="icon-button" onClick={onNext} aria-label="Next affirmation"><ArrowRight size={20} /></button>
           <span className="action-divider" />
           <button className={`text-button ${isSaved ? "selected" : ""}`} onClick={onSave}><Heart size={22} weight={isSaved ? "fill" : "regular"} /> {isSaved ? "Saved" : "Save"}</button>
@@ -613,7 +635,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState("a20");
   const [toast, setToast] = useState("");
   const [notificationPermission, setNotificationPermission] = useState(() => "Notification" in window ? Notification.permission : "unsupported");
-  const [narration, setNarration] = useState({ status: "idle", repetition: 0, repeatCount: 2, cyclePosition: 0, total: 0 });
+  const [narration, setNarration] = useState({ status: "idle", repetition: 0, repeatCount: 2, cyclePosition: 0, total: 0, remainingSeconds: 0, totalSeconds: 0 });
   const toastTimer = useRef();
   const narrator = useRef();
   const allAffirmations = useMemo(() => [...AFFIRMATIONS, ...custom], [custom]);
@@ -633,7 +655,7 @@ export function App() {
 
   const stopNarration = (message = "") => {
     narrator.current?.stop();
-    setNarration({ status: "idle", repetition: 0, repeatCount, cyclePosition: 0, total: 0 });
+    setNarration({ status: "idle", repetition: 0, repeatCount, cyclePosition: 0, total: 0, remainingSeconds: 0, totalSeconds: 0 });
     if (message) notify(message);
   };
 

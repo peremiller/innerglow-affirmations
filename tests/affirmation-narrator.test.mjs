@@ -114,6 +114,40 @@ test("supports one, two, or three recitations per affirmation", async () => {
   }
 });
 
+test("emits a visible remaining-time countdown and freezes it while paused", () => {
+  const speech = new FakeSpeechSynthesis({ autoEnd: false });
+  const states = [];
+  let countdownTick;
+  let currentTime = 0;
+  const narrator = createAffirmationNarrator({
+    speechSynthesis: speech,
+    Utterance: FakeUtterance,
+    onProgress: (state) => states.push(state),
+    countdownWatch: (callback) => { countdownTick = callback; return Symbol("countdown"); },
+    countdownUnwatch: () => {},
+    visibilityTarget: null,
+    now: () => currentTime,
+  });
+
+  narrator.toggle([{ id: "a", text: "I welcome this calm and steady moment with an open heart." }], "a", 1);
+  const initialSeconds = states.at(-1).remainingSeconds;
+  currentTime = 1000;
+  countdownTick();
+  const activeSeconds = states.at(-1).remainingSeconds;
+
+  assert.equal(initialSeconds > 0, true);
+  assert.equal(activeSeconds, initialSeconds - 1);
+
+  narrator.toggle();
+  const pausedState = states.at(-1);
+  currentTime = 6000;
+  countdownTick();
+
+  assert.equal(pausedState.status, "paused");
+  assert.equal(states.at(-1).remainingSeconds, pausedState.remainingSeconds);
+  narrator.destroy();
+});
+
 test("reliably resumes by restarting the current repetition after pause", () => {
   const speech = new FakeSpeechSynthesis({ autoEnd: false });
   const states = [];
