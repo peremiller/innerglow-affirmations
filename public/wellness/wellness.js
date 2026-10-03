@@ -54,6 +54,7 @@ function duck(value) { ducked = value; adjustMusic(); }
 // Preserve each app's countdown, repetition, and pause logic while substituting neural voice clips.
 const synth = window.speechSynthesis;
 let currentSpeech = null, speechVersion = 0, virtualPaused = false;
+const spokenVisual = { active: false, paused: false, text: '' };
 let nativeSpeaking = () => false, nativePaused = () => false;
 if (synth) {
   const proto = Object.getPrototypeOf(synth);
@@ -69,7 +70,7 @@ if (synth) {
       paused: { configurable: true, get: () => virtualPaused || nativePaused() },
     });
   } catch {}
-  function cancelVirtual() { speechVersion++; currentSpeech?.audio?.pause(); currentSpeech = null; virtualPaused = false; duck(false); }
+  function cancelVirtual() { speechVersion++; currentSpeech?.audio?.pause(); currentSpeech = null; virtualPaused = false; spokenVisual.active = false; spokenVisual.paused = false; duck(false); }
   function useNative(utterance, version) {
     if (version !== speechVersion) return;
     currentSpeech = null;
@@ -81,12 +82,14 @@ if (synth) {
     utterance.rate = 0.92 * settings.speed; utterance.pitch = 1; utterance.volume = settings.voiceVolume / 100;
     const end = utterance.onend, error = utterance.onerror, start = utterance.onstart;
     utterance.onstart = event => { duck(true); start?.(event); };
-    utterance.onend = event => { duck(false); end?.(event); };
-    utterance.onerror = event => { duck(false); error?.(event); };
+    utterance.onend = event => { if (version === speechVersion) spokenVisual.active = false; duck(false); end?.(event); };
+    utterance.onerror = event => { if (version === speechVersion) spokenVisual.active = false; duck(false); error?.(event); };
     original.speak(utterance);
   }
   synth.speak = utterance => {
     const version = ++speechVersion;
+    spokenVisual.active = true; spokenVisual.paused = false; spokenVisual.text = normalize(utterance.text);
+    stopCue();
     currentSpeech?.audio?.pause();
     currentSpeech = { loading: true, audio: null }; virtualPaused = false;
     audioContext()?.resume().catch(() => {});
@@ -105,7 +108,7 @@ if (synth) {
       let index = 0;
       const next = () => {
         if (version !== speechVersion) return;
-        if (index >= clips.length) { currentSpeech = null; duck(false); utterance.onend?.({ type: 'end', utterance }); return; }
+        if (index >= clips.length) { currentSpeech = null; spokenVisual.active = false; duck(false); utterance.onend?.({ type: 'end', utterance }); return; }
         const audio = new Audio(clips[index++]); audio.volume = settings.voiceVolume / 100; audio.playbackRate = settings.speed;
         currentSpeech = { audio, loading: true }; duck(true);
         audio.onplaying = () => { if (version !== speechVersion) return audio.pause(); currentSpeech.loading = false; utterance.onstart?.({ type: 'start', utterance }); };
@@ -117,8 +120,8 @@ if (synth) {
     });
   };
   synth.cancel = () => { cancelVirtual(); original.cancel(); };
-  synth.pause = () => { virtualPaused = true; currentSpeech?.audio?.pause(); duck(false); original.pause(); };
-  synth.resume = () => { virtualPaused = false; currentSpeech?.audio?.play().catch(() => {}); if (currentSpeech) duck(true); original.resume(); };
+  synth.pause = () => { virtualPaused = true; spokenVisual.paused = true; currentSpeech?.audio?.pause(); duck(false); original.pause(); };
+  synth.resume = () => { virtualPaused = false; spokenVisual.paused = false; currentSpeech?.audio?.play().catch(() => {}); if (currentSpeech) duck(true); original.resume(); };
 }
 
 let cueAudio, cueVersion = 0;
@@ -140,6 +143,13 @@ function stopCue() { cueVersion++; cueAudio?.pause(); cueAudio = null; duck(fals
 const toolbar = document.createElement('div'); toolbar.className = 'wellness-toolbar';
 toolbar.innerHTML = `<span class="wellness-label">A moment for you</span><div><button data-action="breathwork">◎ Breathwork</button><button data-action="audio">♫ Voice & music</button><button data-action="theme" aria-label="Switch appearance"></button></div>`;
 document.body.prepend(toolbar);
+const affirmationVisualMarkup = `<div class="wellness-affirmation-visual"><div class="wellness-affirmation-light" aria-hidden="true"><i></i><i></i><i></i></div><div class="wellness-affirmation-copy"><small class="wellness-affirmation-category">Affirmation</small><blockquote class="wellness-affirmation-text"></blockquote><span class="wellness-affirmation-caption">Let these words settle with each breath.</span></div></div>`;
+const companion = document.createElement('section'); companion.className = 'wellness-companion'; companion.hidden = true;
+companion.setAttribute('aria-label', 'Breathing and affirmation visuals');
+companion.innerHTML = `<div class="wellness-companion-heading"><strong>Breathe & affirm</strong><span class="wellness-companion-status"></span><button class="wellness-visual-toggle" aria-expanded="true" aria-controls="wellness-combined-body">Minimize visuals</button></div><div id="wellness-combined-body" class="wellness-combined-body"><div class="wellness-companion-breath"><div class="wellness-companion-orb"><span class="wellness-companion-phase">Inhale</span><strong class="wellness-companion-seconds">4</strong></div><small class="wellness-companion-rhythm"></small></div>${affirmationVisualMarkup}</div>`;
+toolbar.after(companion);
+const visualToggle = companion.querySelector('.wellness-visual-toggle');
+visualToggle.onclick = () => { const body = companion.querySelector('.wellness-combined-body'); body.hidden = !body.hidden; visualToggle.setAttribute('aria-expanded', !body.hidden); visualToggle.textContent = body.hidden ? 'Expand visuals' : 'Minimize visuals'; };
 const aura = document.createElement('div'); aura.className = 'wellness-aura'; aura.setAttribute('aria-hidden', 'true'); aura.innerHTML = '<i></i><i></i><i></i>'; document.body.append(aura);
 const dialog = document.createElement('dialog'); dialog.className = 'wellness-dialog'; dialog.setAttribute('aria-labelledby','wellness-title');
 dialog.innerHTML = `<div class="wellness-dialog-heading"><div><small>Your practice</small><h2 id="wellness-title">Breathe. Settle. Listen.</h2></div><button class="wellness-close" aria-label="Close practice settings">×</button></div>
@@ -153,6 +163,7 @@ dialog.innerHTML = `<div class="wellness-dialog-heading"><div><small>Your practi
 <h3>Music beneath your words</h3><label class="wellness-check"><input id="wellness-music" type="checkbox"> Background music during sessions</label><label class="wellness-field">Soundscape<select id="wellness-track"><option value="0">Calming clouds · soft pads & chimes</option><option value="1">Healing calm · warm ambient piano</option><option value="2">Relaxing flow · piano & strings</option></select></label><label class="wellness-field">Music volume <output id="wellness-volume-output"></output><input id="wellness-volume" type="range" min="0" max="70" step="5"></label><div class="wellness-preview-row"><button id="wellness-preview-music">Preview music</button><span id="wellness-audio-status" role="status">Music starts with your session</span></div><p class="wellness-guidance">Music lowers automatically while the voice speaks.</p>
 <label class="wellness-check"><input id="wellness-effects" type="checkbox"> Visual effects during countdowns</label></section>`;
 document.body.append(dialog);
+dialog.querySelector('.wellness-session-line').insertAdjacentHTML('afterend', affirmationVisualMarkup);
 const $ = selector => dialog.querySelector(selector);
 function setStatus(message) { const target = $('#wellness-audio-status'); if (target && target.textContent !== message) target.textContent = message; }
 function applyAppearance() { root.dataset.appearance = settings.mode; const button = toolbar.querySelector('[data-action="theme"]'); button.textContent = settings.mode === 'dark' ? '☀ Light mode' : '☾ Dark mode'; button.setAttribute('aria-label', `Switch to ${settings.mode === 'dark' ? 'light' : 'dark'} mode`); save('Mode',settings.mode); }
@@ -204,9 +215,58 @@ function renderBreath(){
 }
 renderBreath();
 function originalTimerRunning(){return Boolean(document.querySelector('.breathing-visual.running, .breath-ring.practicing, .audio-countdown:not(.paused)')||document.querySelector('.audio-playback-status.active .audio-primary-action[aria-label^="Pause"]'));}
+const visualClock = { elapsed: 0, started: 0, running: false, active: false };
+function narrationVisualState() {
+  const inner = document.querySelector('.audio-countdown');
+  const tribe = document.querySelector('.audio-playback-status.active');
+  const active = Boolean(inner || tribe || spokenVisual.active);
+  const paused = inner ? inner.classList.contains('paused') : tribe ? Boolean(tribe.querySelector('[aria-label^="Resume"]')) : spokenVisual.paused;
+  return { active, running: active && !paused };
+}
+function currentAffirmation() {
+  const hero = document.querySelector('.affirmation-hero');
+  const text = hero?.querySelector('blockquote')?.textContent.trim().replace(/^[“"]|[”"]$/g, '') || spokenVisual.text || 'I give myself permission to pause, breathe, and begin again.';
+  return { text, category: hero?.querySelector('.category')?.textContent.trim() || 'Affirmation' };
+}
+function renderCombinedVisuals() {
+  const narration = narrationVisualState();
+  const breathActive = session.running || (session.elapsed > 0 && session.elapsed < session.duration);
+  const ritualRunning = Boolean(document.querySelector('.breathing-visual.running, .breath-ring.practicing'));
+  const active = narration.active || breathActive || ritualRunning;
+  const running = narration.running || session.running || ritualRunning;
+  const now = performance.now();
+  if (!active) { visualClock.elapsed = 0; visualClock.running = false; }
+  else if (running !== visualClock.running) {
+    if (visualClock.running) visualClock.elapsed += now - visualClock.started;
+    else visualClock.started = now;
+    visualClock.running = running;
+  }
+  if (active && !visualClock.active) {
+    companion.querySelector('.wellness-combined-body').hidden = false;
+    visualToggle.setAttribute('aria-expanded', 'true'); visualToggle.textContent = 'Minimize visuals';
+  }
+  visualClock.active = active; companion.hidden = !active;
+  const elapsed = breathActive ? elapsedNow() : visualClock.elapsed + (visualClock.running ? now - visualClock.started : 0);
+  const breathingRunning = breathActive ? session.running : running;
+  const phase = breathAt(elapsed, session.pattern);
+  companion.querySelector('.wellness-companion-orb').style.transform = `scale(${phase.scale})`;
+  companion.querySelector('.wellness-companion-phase').textContent = breathingRunning ? phase.label : 'Paused';
+  companion.querySelector('.wellness-companion-seconds').textContent = phase.secondsLeft;
+  companion.querySelector('.wellness-companion-rhythm').textContent = PATTERNS[session.pattern].detail;
+  companion.querySelector('.wellness-companion-status').textContent = narration.active ? (narration.running ? 'Affirmation playing' : 'Affirmation paused') : (running ? 'Breathwork practice' : 'Practice paused');
+  const affirmation = currentAffirmation();
+  for (const container of [companion, dialog]) {
+    container.dataset.visualRunning = running;
+    const quote = container.querySelector('.wellness-affirmation-text');
+    if (quote.textContent !== affirmation.text) quote.textContent = affirmation.text;
+    container.querySelector('.wellness-affirmation-category').textContent = affirmation.category;
+  }
+}
+renderCombinedVisuals();
 let lastRunning=false;
 setInterval(()=>{
   renderBreath();
+  renderCombinedVisuals();
   const originalRunning=originalTimerRunning(),running=session.running||originalRunning;
   root.dataset.sessionRunning=running;
   if(running!==lastRunning){if(running)playMusic();else if(!previewMusic)stopMusic();lastRunning=running;}

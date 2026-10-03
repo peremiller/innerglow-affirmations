@@ -10,15 +10,16 @@
 :root[data-appearance="light"] :is(.affirmation-hero,.ritual-panel,.checkin-panel,.surface-panel,.metrics-strip,.inner-view,.journal-card,.wish-form,.library-card,.wish-item,.notification-schedule,.audio-playback-status,.check-in,.stats-strip) {
   background-color:#fff; color:var(--text); border-color:var(--line); box-shadow:0 8px 30px #2944530a;
 }
-:root[data-appearance="light"] .affirmation-hero { background-image:linear-gradient(110deg,#fffffff2,#edf5fbe8); }
+:root[data-appearance="light"] .affirmation-hero { background-image:linear-gradient(110deg,#ffffffd9,#edf5fb99),var(--aurora-image,url('/assets/tribe-river-dusk.svg')); }
 :root[data-appearance="light"] .affirmation-hero::after { background:transparent; }
 :root[data-appearance="light"] .hero-shade { background:transparent; }
 :root[data-appearance="light"] :is(.affirmation-hero .note,.repeat-control>span,.stat span:not(.stat-icon),.streak,.breathing-visual small,.notification-actions button,.mood-options button,.empty-state h2,.library-card button,.reflection) { color:var(--muted); text-shadow:none; }
 :root[data-appearance="light"] :is(.repeat-control,.notification-times>div,.icon-button,.text-button,.choice-button,.affirmation-row,.mood-panel,.gratitude-panel,.page-view,.checkin-card,.stats-panel,.alerts-block,.moods button) { background:#f6fafb; color:var(--text); border-color:var(--line); }
 :root[data-appearance="light"] .repeat-control small { color:var(--muted); }
 :root[data-appearance="light"] :is(.repeat-control button.active,.choice-button.active) { background:#17666b; color:#fff; }
-:root[data-appearance="light"] .breathing-visual img { visibility:hidden; }
-:root[data-appearance="light"] .breathing-visual::before { content:""; position:absolute; inset:10px; border:2px solid #16858980; border-radius:50%; background:radial-gradient(circle at 35% 30%,#dff7f3,#f2f7fa); box-shadow:0 0 24px #16858918; }
+:root[data-appearance="light"] .breathing-visual img { visibility:visible; mix-blend-mode:normal; border-radius:50%; }
+:root[data-appearance="light"] .breathing-visual>div { padding:8px 12px; background:#ffffffe6; border-radius:16px; }
+:root[data-appearance="light"] .affirmation-visual { opacity:.85; filter:drop-shadow(0 12px 24px #18314225); }
 :root[data-appearance="light"] .practice-button { background-image:none; text-shadow:none; }
 :root[data-appearance="light"] blockquote { text-shadow:none; }
 :root[data-appearance="light"] .breath-ring :is(strong,span) { color:#f8f7ee; }
@@ -76,3 +77,24 @@
 @media(max-width:600px) { .wellness-toolbar { width:calc(100% - 24px); flex-direction:column; align-items:stretch; gap:8px; padding:8px 0; }.wellness-label { display:none; }.wellness-toolbar>div { flex-wrap:nowrap; gap:6px; }.wellness-toolbar button { flex:1; padding:8px 6px; font-size:12px; min-height:42px; white-space:nowrap; }.wellness-dialog { padding:20px; }.wellness-dialog h2 { font-size:26px; }.wellness-orb-wrap { width:190px; height:190px; }.wellness-orb { width:152px; height:152px; } }
 
 .wellness-settings-link { width:100%; margin:14px 0; padding:12px; border:1px solid var(--wellness-border); border-radius:10px; background:var(--wellness-bg); color:var(--wellness-text); font-size:14px; cursor:pointer; }
+.wellness-companion { position:sticky; top:8px; z-index:13; width:min(100% - 44px,1000px); margin:14px auto; padding:16px; border:1px solid var(--wellness-border); border-radius:20px; background:var(--wellness-bg); color:var(--wellness-text); box-shadow:0 12px 40px #0002; font-family:Inter,Manrope,system-ui,sans-serif; }
+.wellness-companion[hidden],.wellness-combined-body[hidden] { display:none; }
+.wellness-companion-heading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; font-size:14px; }
+.wellness-companion-heading>strong { font-weight:600; }.wellness-companion-status { color:var(--wellness-muted); font-size:12px; }
+.wellness-visual-toggle { margin-left:auto; padding:7px 10px; min-height:40px; border:1px solid var(--wellness-border); border-radius:9px; background:transparent; color:var(--wellness-text); font:inherit; font-size:12px; cursor:pointer; }
+.wellness-visual-toggle:focus-visible { outline:3px solid var(--wellness-accent); outline-offset:3px; }
+.wellness-combined-body { display:grid; grid-template-columns:160px minmax(0,1fr); align-items:center; gap:22px; }
+.wellness-companion-breath { display:grid; justify-items:center; gap:8px; text-align:center; }
+.wellness-companion-orb { width:130px; height:130px; display:grid; place-content:center; gap:4px; border:1px solid var(--wellness-accent); border-radius:50%; background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--wellness-accent) 24%,var(--wellness-bg)),var(--wellness-bg)); box-shadow:0 0 24px color-mix(in srgb,var(--wellness-accent) 14%,transparent); }
+.wellness-companion-phase { font-size:14px; }.wellness-companion-seconds { font:400 34px/1.1 Georgia,serif; }.wellness-companion-rhythm { font-size:11px; line-height:1.5; color:var(--wellness-muted); }
+.wellness-affirmation-visual { position:relative; isolation:isolate; overflow:hidden; border:1px solid var(--wellness-border); border-radius:16px; padding:20px; background:linear-gradient(125deg,color-mix(in srgb,var(--wellness-accent) 12%,var(--wellness-bg)),var(--wellness-bg)); }
+.wellness-affirmation-copy { position:relative; z-index:1; }.wellness-affirmation-category { display:block; color:var(--wellness-accent); font-size:12px; font-weight:600; margin-bottom:10px; }
+.wellness-affirmation-text { margin:0; color:var(--wellness-text); font:400 24px/1.4 Georgia,serif; text-shadow:none; overflow-wrap:anywhere; }
+.wellness-affirmation-caption { display:block; color:var(--wellness-muted); font-size:12px; line-height:1.5; margin-top:12px; }
+.wellness-affirmation-light { position:absolute; inset:0; pointer-events:none; }.wellness-affirmation-light i { position:absolute; right:-30px; top:-50px; width:180px; height:180px; border-radius:50%; border:1px solid color-mix(in srgb,var(--wellness-accent) 28%,transparent); animation:wellness-affirmation-bloom 8s ease-in-out infinite; animation-play-state:paused; }.wellness-affirmation-light i:nth-child(2) { width:240px; height:240px; right:-60px; top:-80px; animation-delay:-2s; }.wellness-affirmation-light i:nth-child(3) { width:300px; height:300px; right:-90px; top:-110px; animation-delay:-4s; }
+[data-visual-running="true"] .wellness-affirmation-light i { animation-play-state:running; }
+:root[data-visual-effects="false"] .wellness-affirmation-light i { animation:none; }
+.wellness-dialog [data-pane="breathwork"]>.wellness-affirmation-visual { margin:16px 0 20px; }
+@keyframes wellness-affirmation-bloom { 0%,100% { transform:scale(.85); opacity:.3; } 50% { transform:scale(1.08); opacity:.8; } }
+@media(prefers-reduced-motion:reduce) { .wellness-affirmation-light i { animation:none!important; }.wellness-companion-orb { transform:none!important; } }
+@media(max-width:600px) { .wellness-companion { width:calc(100% - 24px); padding:12px; top:6px; border-radius:16px; }.wellness-combined-body { grid-template-columns:100px minmax(0,1fr); gap:10px; }.wellness-companion-orb { width:96px; height:96px; }.wellness-companion-seconds { font-size:28px; }.wellness-companion-phase { font-size:12px; }.wellness-affirmation-visual { padding:14px; }.wellness-companion .wellness-affirmation-text { font-size:18px; }.wellness-companion .wellness-affirmation-caption { display:none; }.wellness-companion-heading { gap:6px; }.wellness-companion-status { flex:1; }.wellness-visual-toggle { font-size:11px; padding:6px; }.wellness-companion-rhythm { font-size:10px; } }
