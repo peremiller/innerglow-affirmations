@@ -45,7 +45,6 @@ import {
   Trophy,
   Waves,
 } from "@phosphor-icons/react";
-import { AMBIENT_TRACKS, createAmbientSoundscape } from "./ambient-audio";
 import { createAffirmationNarrator } from "./affirmation-narrator";
 import { getDueNotificationSlot, manilaDateParts, NOTIFICATION_SLOTS } from "./notification-schedule";
 
@@ -395,34 +394,7 @@ function Ritual({ duration, onDurationChange, minutes, setMinutes, practiceDays,
   const [mode, setMode] = useState("breathe");
   const [remaining, setRemaining] = useState(duration * 60);
   const [running, setRunning] = useState(false);
-  const [musicEnabled, setMusicEnabled] = useStoredState("igRitualMusicEnabled", true);
-  const [musicTrack, setMusicTrack] = useStoredState("igRitualMusicTrack", "celestial");
-  const [musicVolume, setMusicVolume] = useStoredState("igRitualMusicVolume", 45);
   const completionLock = useRef(false);
-  const ambientAudio = useRef(null);
-
-  const stopMusic = () => {
-    ambientAudio.current?.stop();
-    ambientAudio.current = null;
-  };
-
-  const startMusic = async (track = musicTrack) => {
-    stopMusic();
-    if (!musicEnabled) return;
-    ambientAudio.current = createAmbientSoundscape(track, musicVolume / 100);
-    try {
-      await ambientAudio.current?.start();
-    } catch {
-      stopMusic();
-      notify("Music needs audio permission in this browser");
-    }
-  };
-
-  useEffect(() => () => stopMusic(), []);
-
-  useEffect(() => {
-    ambientAudio.current?.setVolume(musicVolume / 100);
-  }, [musicVolume]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -434,7 +406,6 @@ function Ritual({ duration, onDurationChange, minutes, setMinutes, practiceDays,
     if (!running || remaining !== 0 || completionLock.current) return;
     completionLock.current = true;
     setRunning(false);
-    stopMusic();
     setMinutes((value) => value + duration);
     const today = manilaDateKey();
     if (!practiceDays.includes(today)) setPracticeDays([...practiceDays, today]);
@@ -446,8 +417,6 @@ function Ritual({ duration, onDurationChange, minutes, setMinutes, practiceDays,
       completionLock.current = false;
       setRemaining(duration * 60);
     }
-    if (running) stopMusic();
-    else startMusic();
     setRunning((value) => !value);
   };
 
@@ -455,23 +424,7 @@ function Ritual({ duration, onDurationChange, minutes, setMinutes, practiceDays,
     onDurationChange(value);
     setRemaining(value * 60);
     setRunning(false);
-    stopMusic();
     completionLock.current = false;
-  };
-
-  const chooseMusicTrack = (track) => {
-    setMusicTrack(track);
-    if (running && musicEnabled) startMusic(track);
-  };
-
-  const toggleMusic = () => {
-    const nextEnabled = !musicEnabled;
-    setMusicEnabled(nextEnabled);
-    if (!nextEnabled) stopMusic();
-    else if (running) {
-      ambientAudio.current = createAmbientSoundscape(musicTrack, musicVolume / 100);
-      ambientAudio.current?.start().catch(() => notify("Music needs audio permission in this browser"));
-    }
   };
 
   const elapsed = duration * 60 - remaining;
@@ -494,23 +447,7 @@ function Ritual({ duration, onDurationChange, minutes, setMinutes, practiceDays,
       <div className="duration-options">
         {[1, 2, 3, 5].map((value) => <button key={value} className={duration === value ? "active" : ""} onClick={() => chooseDuration(value)}>{value} min</button>)}
       </div>
-      <div className="soundscape-control">
-        <div className="soundscape-heading">
-          <span><MusicNotes size={16} /> Calming music</span>
-          <button className={musicEnabled ? "enabled" : ""} onClick={toggleMusic} aria-pressed={musicEnabled}>
-            {musicEnabled ? <SpeakerHigh size={16} /> : <SpeakerSlash size={16} />} {musicEnabled ? "On" : "Off"}
-          </button>
-        </div>
-        <div className="soundscape-options" aria-label="Calming music track">
-          {AMBIENT_TRACKS.map((track) => <button key={track.id} className={musicTrack === track.id ? "active" : ""} onClick={() => chooseMusicTrack(track.id)} title={track.detail}>{track.label}</button>)}
-        </div>
-        <label className="volume-control">
-          <SpeakerHigh size={15} />
-          <input type="range" min="0" max="100" step="5" value={musicVolume} onChange={(event) => setMusicVolume(Number(event.target.value))} aria-label="Calming music volume" disabled={!musicEnabled} />
-          <output>{musicVolume}%</output>
-        </label>
-        <small className="music-status">{running && musicEnabled ? `${AMBIENT_TRACKS.find((track) => track.id === musicTrack)?.label} is playing softly` : "Music fades in when your practice begins"}</small>
-      </div>
+      <button className="wellness-settings-link" onClick={() => window.wellness?.openAudio()}>Voice & music settings</button>
       <button className="practice-button" onClick={start}>{running ? <Pause size={20} weight="fill" /> : <Lotus size={21} />} {running ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} · Pause` : remaining < duration * 60 ? "Resume practice" : "Begin guided practice"}<ArrowRight size={20} /></button>
       <NotificationSchedule {...notifications} />
     </aside>
@@ -647,6 +584,11 @@ export function App() {
   const today = manilaDateKey();
 
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
+  useEffect(() => {
+    const complete = (event) => setMinutes(value => value + event.detail.minutes);
+    window.addEventListener('wellness:completed', complete);
+    return () => window.removeEventListener('wellness:completed', complete);
+  }, [setMinutes]);
   useEffect(() => {
     if (!practiceDays.includes(today)) setPracticeDays([...practiceDays, today]);
   }, []); // The original app treats a mindful daily visit as practice continuity.
