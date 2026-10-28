@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/inter/700.css";
-import "@fontsource/cormorant-garamond/500.css";
-import "@fontsource/cormorant-garamond/600.css";
+import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-500.css";
+import "@fontsource/inter/latin-600.css";
+import "@fontsource/inter/latin-700.css";
+import "@fontsource/cormorant-garamond/latin-500.css";
+import "@fontsource/cormorant-garamond/latin-600.css";
 import { AURORA_ASSET, BREATHING_ASSET, MARK_ASSET } from "./generated-assets";
+import { MeetingStudio, SceneryPicker } from "./MeetingStudio";
+import { SCENERIES } from "./meeting-data";
 import {
+  ArrowsOut,
   ArrowLeft,
   ArrowRight,
   Bell,
@@ -235,7 +238,7 @@ function manilaDateKey(date = new Date()) {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-function Header({ view, setView, theme, setTheme }) {
+function Header({ view, setView, theme, setTheme, onMeeting }) {
   const now = new Date();
   const date = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Manila",
@@ -259,7 +262,7 @@ function Header({ view, setView, theme, setTheme }) {
         ))}
       </nav>
       <div className="header-actions">
-        <div className="themes" aria-label="Color theme">
+        <button className="header-meeting" onClick={onMeeting}><ArrowsOut size={17} /> Team moment</button><div className="themes" aria-label="Color theme">
           {THEMES.map((name) => (
             <button key={name} className={`theme-${name} ${theme === name ? "active" : ""}`} aria-label={`${name} theme`} onClick={() => setTheme(name)} />
           ))}
@@ -297,7 +300,7 @@ function formatCountdown(totalSeconds = 0) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function AffirmationHero({ affirmation, isSaved, narration, repeatCount, sessionMinutes, onRepeatChange, onPrevious, onNext, onListen, onSave, onShare }) {
+function AffirmationHero({ scenery, onMeeting, affirmation, isSaved, narration, repeatCount, sessionMinutes, onRepeatChange, onPrevious, onNext, onListen, onSave, onShare }) {
   const CategoryIcon = (CATEGORY_VISUALS[affirmation.category] || CATEGORY_VISUALS.Mine).Icon;
   const narrating = narration.status !== "idle";
   const activeRepeatCount = narration.repeatCount || repeatCount;
@@ -311,12 +314,12 @@ function AffirmationHero({ affirmation, isSaved, narration, repeatCount, session
     : 0;
 
   return (
-    <section className="affirmation-hero" aria-labelledby="affirmation-heading">
+    <section className="affirmation-hero" aria-labelledby="affirmation-heading" style={{ "--scene-image": `url(${scenery.image})` }}>
       <div className="hero-shade" />
-      <AffirmationVisual category={affirmation.category} />
+      <span className="hero-location"><Leaf size={14} /> {scenery.name}</span>
       <div className="hero-content">
         <div className="hero-topline">
-          <p className="eyebrow" id="affirmation-heading">Affirmation of the day</p>
+          <p className="eyebrow" id="affirmation-heading"><span className="live-dot"/> YOUR DAILY MOMENT</p>
           <div className="audio-quick-controls">
             <button
               className={`primary-button ${narrating ? "narrating" : ""}`}
@@ -359,6 +362,7 @@ function AffirmationHero({ affirmation, isSaved, narration, repeatCount, session
           <span className="action-divider" />
           <button className={`text-button ${isSaved ? "selected" : ""}`} onClick={onSave}><Heart size={22} weight={isSaved ? "fill" : "regular"} /> {isSaved ? "Saved" : "Save"}</button>
           <button className="text-button" onClick={onShare}><ShareNetwork size={22} /> Share</button>
+          <button className="hero-present" onClick={onMeeting} aria-label="Set up full-screen presentation"><ArrowsOut size={20}/></button>
         </div>
       </div>
     </section>
@@ -395,6 +399,11 @@ function Ritual({ duration, onDurationChange, minutes, setMinutes, practiceDays,
   const [remaining, setRemaining] = useState(duration * 60);
   const [running, setRunning] = useState(false);
   const completionLock = useRef(false);
+  useEffect(() => {
+    const pauseForPresentation = () => setRunning(false);
+    window.addEventListener('ig:presentation', pauseForPresentation);
+    return () => window.removeEventListener('ig:presentation', pauseForPresentation);
+  }, []);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -483,16 +492,19 @@ function Stats({ minutes, savedCount, consistency }) {
 }
 
 function TodayView(props) {
-  return (
+  return <>
+    <section className="day-intro"><div><p className="eyebrow">LESS NOISE. MORE POSSIBILITY.</p><h1>A little stillness.<em>A brighter beginning.</em></h1></div><p>A moment to come back to yourself.<br/>Or a new way to begin, together.</p></section>
     <div className="today-layout">
       <AffirmationHero {...props.hero} />
       <div className="right-rail">
+        <section className="team-moment-card"><span className="team-symbol"><Lotus size={27} weight="light"/></span><p className="eyebrow">A MOMENT, TOGETHER</p><h2>Good weeks begin<br/>with a little space.</h2><p>Bring your team into the present. Calming scenery, meaningful words, and music to set the tone.</p><button onClick={props.onMeeting}>Create a team moment <ArrowRight size={19}/></button><small><ArrowsOut size={13}/> FULL SCREEN <i/> 1–5 MINUTES</small></section>
         <Ritual {...props.ritual} />
-        <CheckIn {...props.checkin} />
       </div>
-      <Stats {...props.stats} />
     </div>
-  );
+    <section className="scenery-section"><div className="section-heading"><div><p className="eyebrow">A CHANGE OF SCENERY</p><h2>Find your quiet.</h2></div><p>Choose somewhere your mind can exhale.</p></div><SceneryPicker selected={props.scenery} onChange={props.setScenery}/></section>
+    <section className="reflection-section"><CheckIn {...props.checkin}/><Stats {...props.stats}/></section>
+    <footer className="app-footer"><span><Lotus size={19}/> InnerGlow</span><p>A little more present. A little more you.</p><button onClick={() => window.wellness?.openAudio()}>Voice & music <MusicNotes size={16}/></button></footer>
+  </>;
 }
 
 function LibraryView({ custom, setCustom, favorites, toggleFavorite, selectAffirmation, notify }) {
@@ -562,6 +574,11 @@ function BottomNav({ view, setView }) {
 
 export function App() {
   const [view, setView] = useState("today");
+  const [meetingOpen, setMeetingOpen] = useState(false);
+  const [openingIntention, setOpeningIntention] = useState(null);
+  const openMeeting = (intention = null) => { setOpeningIntention(intention); setMeetingOpen(true); };
+  const [scenery, setScenery] = useStoredState("igScenery", "forest");
+  const currentScenery = SCENERIES.find(item => item.id === scenery) || SCENERIES[0];
   const [theme, setTheme] = useStoredState("igTheme", "aurora");
   const [favorites, setFavorites] = useStoredState("igFavs2", []);
   const [custom, setCustom] = useStoredState("igMine", []);
@@ -726,10 +743,11 @@ export function App() {
 
   return (
     <div className="app-shell" style={{ "--aurora-image": `url(${AURORA_ASSET})` }}>
-      <Header view={view} setView={changeView} theme={theme} setTheme={setTheme} />
+      <Header view={view} setView={changeView} theme={theme} setTheme={setTheme} onMeeting={() => openMeeting()} />
       <main>
         {view === "today" && <TodayView
-          hero={{ affirmation, isSaved: favorites.includes(affirmation.id), narration, repeatCount, sessionMinutes, onRepeatChange: changeRepeatCount, onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
+          scenery={scenery} setScenery={setScenery} onMeeting={() => openMeeting()}
+          hero={{ scenery: currentScenery, onMeeting: () => openMeeting("daily"), affirmation, isSaved: favorites.includes(affirmation.id), narration, repeatCount, sessionMinutes, onRepeatChange: changeRepeatCount, onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
           ritual={{ duration: sessionMinutes, onDurationChange: changeSessionMinutes, minutes, setMinutes, practiceDays, setPracticeDays, notify, notifications: { enabled: notificationsEnabled, permission: notificationPermission, onToggle: toggleNotifications, onDownload: addNotificationsToCalendar } }}
           checkin={{ mood: moodToday, setMood: (value) => setMoods({ ...moods, [today]: moodToday === value ? 0 : value }), gratitude: gratitudeToday, setGratitude: (value) => setGratitudes({ ...gratitudes, [today]: value }) }}
           stats={{ minutes, savedCount: favorites.length, consistency: Math.round((consistency / 7) * 100) }}
@@ -738,6 +756,7 @@ export function App() {
         {view === "journal" && <JournalView moods={moods} gratitudes={gratitudes} practiceDays={practiceDays} />}
         {view === "wishes" && <WishesView wishes={wishes} setWishes={setWishes} notify={notify} />}
       </main>
+      <MeetingStudio dailyAffirmation={affirmation.text} openingIntention={openingIntention} open={meetingOpen} onClose={() => setMeetingOpen(false)} scenery={scenery} setScenery={setScenery} onBeforeStart={() => { stopNarration(); window.dispatchEvent(new Event("ig:presentation")); }} onComplete={duration => { setMinutes(value => value + duration); notify('A moment well spent. Your team is ready to begin.'); }}/>
       <BottomNav view={view} setView={changeView} />
       <div className={`toast ${toast ? "show" : ""}`} role="status"><Check size={18} weight="bold" /> {toast}</div>
     </div>

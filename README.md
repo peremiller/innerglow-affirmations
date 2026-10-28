@@ -45,3 +45,21 @@ Dark glassmorphism with Instrument Serif display type, specular card edges, and 
 Built with [Claude Code](https://claude.com/claude-code).
 
 _Auto-deploys from `main` via Vercel GitHub integration._
+
+## Team moments
+
+Select **Team moment** to choose an intention, a 1/2/3/5-minute duration, music,
+optional narration, and one of six sceneries. **Your own words** keeps a custom
+message on screen throughout. Preferences are stored on the current device.
+**Present full screen** requests native fullscreen and falls back to an immersive
+browser-filling view where the Fullscreen API is unavailable. Space pauses,
+left/right arrows change slides, M mutes music, and Escape exits. Presentation
+controls fade while idle and remain available to keyboard users. Sharing audio in
+Teams or Zoom requires enabling sound in that application's screen sharing flow.
+
+Scenery photography is bundled locally as optimized WebP, with separate gallery
+thumbnails. Sources: Unsplash images `photo-1473448912268-2022ce9509d8`,
+`photo-1475924156734-496f6cac6ec1`, `photo-1464822759023-fed622ff2c3b`,
+`photo-1501785888041-af3ef285b470`, and `photo-1509316785289-025f5b846b35`.
+The Northern glow image and all music tracks retain the app's existing assets.
+No inference server is required for this browser-based feature.
