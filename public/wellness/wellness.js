@@ -26,6 +26,7 @@ function adjustMusic() {
   musicGain.gain.setTargetAtTime(volume, context.currentTime, 0.35);
 }
 async function playMusic() {
+  if (root.dataset.presenting === 'true') return;
   musicWanted = true;
   if (!settings.music) return;
   const ctx = audioContext(); if (!ctx) return;
@@ -170,7 +171,7 @@ function applyAppearance() { root.dataset.appearance = settings.mode; const butt
 applyAppearance();
 function switchTab(tab) { dialog.querySelectorAll('[data-pane]').forEach(p=>p.hidden=p.dataset.pane!==tab); dialog.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===tab)); }
 function open(tab) { switchTab(tab); if (!dialog.open) dialog.showModal(); }
-window.wellness = { openAudio: () => open('audio'), openBreathwork: () => open('breathwork') };
+window.wellness = { openAudio: () => open('audio'), openBreathwork: () => open('breathwork'), startPresentation: () => { reset(); previewMusic = false; synth?.cancel(); stopCue(); stopMusic(); companion.hidden = true; }, endPresentation: () => { synth?.cancel(); stopMusic(); } };
 toolbar.addEventListener('click', e=>{ const action=e.target.closest('[data-action]')?.dataset.action; if(action==='theme'){settings.mode=settings.mode==='dark'?'light':'dark';applyAppearance();}else if(action)open(action); });
 dialog.querySelector('.wellness-close').onclick = () => dialog.close();
 dialog.addEventListener('click',e=>{if(e.target===dialog){const b=dialog.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)dialog.close();}const tab=e.target.closest('[data-tab]')?.dataset.tab;if(tab)switchTab(tab);});
@@ -266,6 +267,7 @@ renderCombinedVisuals();
 let lastRunning=false;
 setInterval(()=>{
   renderBreath();
+  if (root.dataset.presenting === 'true') { companion.hidden = true; return; }
   renderCombinedVisuals();
   const originalRunning=originalTimerRunning(),running=session.running||originalRunning;
   root.dataset.sessionRunning=running;
