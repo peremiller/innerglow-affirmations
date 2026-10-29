@@ -7,6 +7,7 @@ import "@fontsource/cormorant-garamond/latin-500.css";
 import "@fontsource/cormorant-garamond/latin-600.css";
 import { AURORA_ASSET, BREATHING_ASSET, MARK_ASSET } from "./generated-assets";
 import { MeetingStudio, SceneryPicker } from "./MeetingStudio";
+import HealingMusic from "./HealingMusic";
 import { SCENERIES } from "./meeting-data";
 import {
   ArrowsOut,
@@ -501,6 +502,7 @@ function TodayView(props) {
         <Ritual {...props.ritual} />
       </div>
     </div>
+    <HealingMusic />
     <section className="scenery-section"><div className="section-heading"><div><p className="eyebrow">A CHANGE OF SCENERY</p><h2>Find your quiet.</h2></div><p>Choose somewhere your mind can exhale.</p></div><SceneryPicker selected={props.scenery} onChange={props.setScenery}/></section>
     <section className="reflection-section"><CheckIn {...props.checkin}/><Stats {...props.stats}/></section>
     <footer className="app-footer"><span><Lotus size={19}/> InnerGlow</span><p>A little more present. A little more you.</p><button onClick={() => window.wellness?.openAudio()}>Voice & music <MusicNotes size={16}/></button></footer>
