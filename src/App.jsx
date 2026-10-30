@@ -502,7 +502,6 @@ function TodayView(props) {
         <Ritual {...props.ritual} />
       </div>
     </div>
-    <HealingMusic />
     <section className="scenery-section"><div className="section-heading"><div><p className="eyebrow">A CHANGE OF SCENERY</p><h2>Find your quiet.</h2></div><p>Choose somewhere your mind can exhale.</p></div><SceneryPicker selected={props.scenery} onChange={props.setScenery}/></section>
     <section className="reflection-section"><CheckIn {...props.checkin}/><Stats {...props.stats}/></section>
     <footer className="app-footer"><span><Lotus size={19}/> InnerGlow</span><p>A little more present. A little more you.</p><button onClick={() => window.wellness?.openAudio()}>Voice & music <MusicNotes size={16}/></button></footer>
@@ -757,6 +756,7 @@ export function App() {
         {view === "library" && <LibraryView custom={custom} setCustom={setCustom} favorites={favorites} toggleFavorite={toggleFavorite} selectAffirmation={selectAffirmation} notify={notify} />}
         {view === "journal" && <JournalView moods={moods} gratitudes={gratitudes} practiceDays={practiceDays} />}
         {view === "wishes" && <WishesView wishes={wishes} setWishes={setWishes} notify={notify} />}
+        <HealingMusic />
       </main>
       <MeetingStudio dailyAffirmation={affirmation.text} openingIntention={openingIntention} open={meetingOpen} onClose={() => setMeetingOpen(false)} scenery={scenery} setScenery={setScenery} onBeforeStart={() => { stopNarration(); window.dispatchEvent(new Event("ig:presentation")); }} onComplete={duration => { setMinutes(value => value + duration); notify('A moment well spent. Your team is ready to begin.'); }}/>
       <BottomNav view={view} setView={changeView} />
