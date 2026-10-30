@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/offline/build.mjs --dir dist --name \"InnerGlow\" --spa --limits \"Local affirmations, routines and bundled audio remain available. External destinations require internet.\"",
     "preview": "vite preview",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "test:offline": "node --test scripts/offline/offline.test.mjs scripts/offline/client.test.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.2.8",
