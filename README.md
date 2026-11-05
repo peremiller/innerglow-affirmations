@@ -74,3 +74,12 @@ repeat controls. The audio is bundled in the automatic offline copy.
 
 To regenerate the recording, install NumPy in a Python environment and ffmpeg,
 then run `python scripts/audio/generate-theta.py`. It uses no third-party recordings.
+
+## Hyperproductivity
+
+Choose **Hyperproductivity** in Healing music, Voice & music settings, or Team
+moment. This original two-minute instrumental track uses a steady 112 BPM
+electronic pulse, warm synth chords, a quiet arpeggio and soft percussion, with
+no vocals. It shares the existing volume, playback and repeat controls and is
+included in automatic offline saving. Regenerate it with
+`python scripts/audio/generate-hyperproductivity.py` (NumPy and ffmpeg required).

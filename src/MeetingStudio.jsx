@@ -20,6 +20,7 @@ export function MeetingStudio({ open, onClose, scenery, setScenery, onBeforeStar
   const [intention, setIntention] = useState(preferences.intention || 'together');
   const [duration, setDuration] = useState(preferences.duration || 2);
   const [music, setMusic] = useState(preferences.music || '1');
+  const musicNote = MUSIC.find(item => item.id === music)?.listeningNote;
   const [volume, setVolume] = useState(preferences.volume ?? 25);
   const [voice, setVoice] = useState(preferences.voice ?? false);
   const [custom, setCustom] = useState(preferences.custom || '');
@@ -154,8 +155,8 @@ export function MeetingStudio({ open, onClose, scenery, setScenery, onBeforeStar
         <select id="meeting-intention" value={intention} onChange={e => setIntention(e.target.value)}>{Object.entries(INTENTIONS).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}<option value="daily">Today’s affirmation</option><option value="custom">Your own words</option></select>
         {intention === 'custom' ? <label className="custom-message">Your affirmation<textarea maxLength={280} rows={3} value={custom} onChange={e => setCustom(e.target.value)} placeholder="Write a message for your team…"/><small>{custom.length}/280 · Your message stays on screen throughout.</small></label> : <p className="field-hint">{intention === "daily" ? "A personal affirmation, held on screen for your session" : INTENTIONS[intention]?.description}</p>}
         <p className="studio-label">02 <span>Make a little space</span></p><div className="meeting-durations" role="group" aria-label="Meeting duration">{[1,2,3,5].map(n => <button key={n} onClick={() => setDuration(n)} aria-pressed={duration === n} className={duration === n ? 'active' : ''}>{n}<small>min</small></button>)}</div>
-        <label className="studio-label" htmlFor="meeting-music">03 <span>Add a soundtrack</span></label><select id="meeting-music" value={music} onChange={e => setMusic(e.target.value)} aria-describedby={music === 'theta' ? 'meeting-theta-note' : undefined}>{MUSIC.map(item => <option key={item.id} value={item.id}>{item.name} · {item.description}</option>)}</select>
-        {music === 'theta' && <p id="meeting-theta-note">{MUSIC.find(item => item.id === music).listeningNote}</p>}
+        <label className="studio-label" htmlFor="meeting-music">03 <span>Add a soundtrack</span></label><select id="meeting-music" value={music} onChange={e => setMusic(e.target.value)} aria-describedby={musicNote ? 'meeting-music-note' : undefined}>{MUSIC.map(item => <option key={item.id} value={item.id}>{item.name} · {item.description}</option>)}</select>
+        {musicNote && <p id="meeting-music-note">{musicNote}</p>}
         <label className="meeting-volume">Music volume <output>{volume}%</output><input type="range" min="0" max="70" step="5" value={volume} disabled={music === 'none'} onChange={e => setVolume(Number(e.target.value))}/></label>
         <label className="meeting-voice"><input type="checkbox" checked={voice} disabled={!('speechSynthesis' in window)} onChange={e => setVoice(e.target.checked)}/><span>Read affirmations aloud<small>{'speechSynthesis' in window ? 'Optional voice, with music lowered underneath' : 'Voice is unavailable in this browser'}</small></span></label>
       </div><div className="studio-visuals"><div className="stage-preview" style={{ backgroundImage: `linear-gradient(0deg,#091b1c99,#091b1c55),url(${scene.image})` }}><span><FlowerLotus size={20}/> INNERGLOW</span><blockquote>{line}</blockquote><small>{duration} MINUTES OF POSSIBILITY</small></div><p className="studio-label">04 <span>Choose a place to pause</span></p><SceneryPicker selected={scenery} onChange={setScenery} compact/></div></div>
