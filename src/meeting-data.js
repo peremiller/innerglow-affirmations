@@ -50,6 +50,7 @@ export const MUSIC = [
   { id: '1', name: 'Healing calm', description: 'Warm ambient piano' },
   { id: '0', name: 'Calming clouds', description: 'Soft pads & chimes' },
   { id: '2', name: 'Relaxing flow', description: 'Piano & strings' },
+  { id: 'theta', name: 'Theta stillness', description: 'Soft ambient music · 6 Hz binaural beat', listeningNote: 'Use stereo headphones for the binaural layer. Start at a comfortable, low volume.' },
   { id: 'none', name: 'Just the quiet', description: 'No background music' },
 ];
 

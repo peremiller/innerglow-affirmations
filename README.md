@@ -63,3 +63,14 @@ thumbnails. Sources: Unsplash images `photo-1473448912268-2022ce9509d8`,
 `photo-1501785888041-af3ef285b470`, and `photo-1509316785289-025f5b846b35`.
 The Northern glow image and all music tracks retain the app's existing assets.
 No inference server is required for this browser-based feature.
+
+## Theta stillness
+
+Choose **Theta stillness** in Healing music, Voice & music settings, or Team moment.
+An original two-minute ambient soundtrack combines soft pads and bells with a
+6 Hz binaural difference (174 Hz left / 180 Hz right). Use stereo headphones for
+the binaural layer. Playback starts only after a user action, with volume and
+repeat controls. The audio is bundled in the automatic offline copy.
+
+To regenerate the recording, install NumPy in a Python environment and ffmpeg,
+then run `python scripts/audio/generate-theta.py`. It uses no third-party recordings.
