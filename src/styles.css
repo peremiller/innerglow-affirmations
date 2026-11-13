@@ -540,3 +540,29 @@ html :is(.tabs,.toolbar,.filter-bar,.filters,.actions,.button-row,.dialog-action
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important; } }
 
 @media screen{html .page-heading h1{letter-spacing:-.04em}html .library-card,html .journal-card,html .checkin-card{border-radius:12px;box-shadow:none}html .affirmation-actions{gap:12px}html .gratitude-history{line-height:1.8}}
+
+/* Accessible navigation and durable-device-storage feedback across themes. */
+.skip-link {
+  position: absolute;
+  top: -120px;
+  left: 14px;
+  z-index: 1000;
+  display: inline-block;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #fff9cf;
+  color: #1c2817;
+  font-weight: 700;
+}
+.skip-link:focus-visible { top: 10px; outline: 3px solid #436c47; outline-offset: 2px; }
+.storage-warning {
+  background: #fff4c7;
+  color: #302907;
+  border: 2px solid #715c13;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 14px 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+#main-content:focus { outline: 2px solid var(--accent); outline-offset: 4px; }
