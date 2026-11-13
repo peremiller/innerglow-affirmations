@@ -51,6 +51,7 @@ import {
 } from "@phosphor-icons/react";
 import { createAffirmationNarrator } from "./affirmation-narrator";
 import { getDueNotificationSlot, manilaDateParts, NOTIFICATION_SLOTS } from "./notification-schedule";
+import { loadSavedValue, saveSavedValue, reportStorageIssue, savedStorageIssueKeys, viewFromHash, VIEW_IDS } from "./app-state";
 
 const CATEGORIES = ["Prosperity", "Confidence", "Health", "Career", "Love", "Gratitude", "Calm", "Sleep"];
 
@@ -154,19 +155,16 @@ const CATEGORY_VISUALS = {
   Mine: { Icon: Sparkle, label: "Words chosen by you", a: "#7ce9db", b: "#ae8cff" },
 };
 
-function readStore(key, fallback) {
-  try {
-    const value = window.localStorage.getItem(key);
-    return value ? JSON.parse(value) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function useStoredState(key, fallback) {
-  const [value, setValue] = useState(() => readStore(key, fallback));
+  const initial = useRef(null);
+  const [value, setValue] = useState(() => {
+    const result = loadSavedValue(() => window.localStorage, key, fallback);
+    initial.current = result;
+    if (!result.writable) reportStorageIssue(key);
+    return result.value;
+  });
   useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    if (!saveSavedValue(() => window.localStorage, key, value, initial.current)) reportStorageIssue(key);
   }, [key, value]);
   return [value, setValue];
 }
@@ -259,13 +257,13 @@ function Header({ view, setView, theme, setTheme, onMeeting }) {
       </button>
       <nav className="desktop-nav" aria-label="Primary navigation">
         {NAV.map(({ id, label }) => (
-          <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)}>{label}</button>
+          <button key={id} className={view === id ? "active" : ""} aria-current={view === id ? "page" : undefined} onClick={() => setView(id)}>{label}</button>
         ))}
       </nav>
       <div className="header-actions">
         <button className="header-meeting" onClick={onMeeting}><ArrowsOut size={17} /> Team moment</button><div className="themes" aria-label="Color theme">
           {THEMES.map((name) => (
-            <button key={name} className={`theme-${name} ${theme === name ? "active" : ""}`} aria-label={`${name} theme`} onClick={() => setTheme(name)} />
+            <button key={name} className={`theme-${name} ${theme === name ? "active" : ""}`} aria-label={`${name} theme`} aria-pressed={theme === name} onClick={() => setTheme(name)} />
           ))}
         </div>
         <div className="welcome"><span><CalendarBlank size={16} /> {date}</span><strong>{greeting}, Miller.</strong></div>
@@ -570,11 +568,11 @@ function WishesView({ wishes, setWishes, notify }) {
 }
 
 function BottomNav({ view, setView }) {
-  return <nav className="bottom-nav" aria-label="Mobile navigation">{NAV.map(({ id, label, Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)}><Icon size={22} weight={view === id ? "fill" : "regular"} /><span>{label}</span></button>)}</nav>;
+  return <nav className="bottom-nav" aria-label="Mobile navigation">{NAV.map(({ id, label, Icon }) => <button key={id} className={view === id ? "active" : ""} aria-current={view === id ? "page" : undefined} onClick={() => setView(id)}><Icon size={22} weight={view === id ? "fill" : "regular"} /><span>{label}</span></button>)}</nav>;
 }
 
 export function App() {
-  const [view, setView] = useState("today");
+  const [view, setView] = useState(() => viewFromHash(window.location.hash));
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [openingIntention, setOpeningIntention] = useState(null);
   const openMeeting = (intention = null) => { setOpeningIntention(intention); setMeetingOpen(true); };
@@ -593,6 +591,7 @@ export function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useStoredState("igNotificationsEnabled", false);
   const [selectedId, setSelectedId] = useState("a20");
   const [toast, setToast] = useState("");
+  const [storageIssue, setStorageIssue] = useState(() => savedStorageIssueKeys().length > 0);
   const [notificationPermission, setNotificationPermission] = useState(() => "Notification" in window ? Notification.permission : "unsupported");
   const [narration, setNarration] = useState({ status: "idle", repetition: 0, repeatCount: 2, cyclePosition: 0, total: 0, remainingSeconds: 0, totalSeconds: 0 });
   const toastTimer = useRef();
@@ -602,6 +601,17 @@ export function App() {
   const today = manilaDateKey();
 
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
+  useEffect(() => {
+    const syncView = () => setView(viewFromHash(window.location.hash));
+    const onStorageIssue = () => setStorageIssue(true);
+    window.addEventListener("hashchange", syncView);
+    window.addEventListener("ig:storage-issue", onStorageIssue);
+    setStorageIssue(savedStorageIssueKeys().length > 0);
+    return () => {
+      window.removeEventListener("hashchange", syncView);
+      window.removeEventListener("ig:storage-issue", onStorageIssue);
+    };
+  }, []);
   useEffect(() => {
     const complete = (event) => setMinutes(value => value + event.detail.minutes);
     window.addEventListener('wellness:completed', complete);
@@ -667,8 +677,13 @@ export function App() {
       const slot = getDueNotificationSlot();
       if (!slot) return;
       const deliveryKey = `${slot.dateKey}:${slot.id}`;
-      if (window.localStorage.getItem("igLastDailyAlert") === deliveryKey) return;
-      window.localStorage.setItem("igLastDailyAlert", deliveryKey);
+      try {
+        if (window.localStorage.getItem("igLastDailyAlert") === deliveryKey) return;
+        window.localStorage.setItem("igLastDailyAlert", deliveryKey);
+      } catch {
+        reportStorageIssue("igLastDailyAlert");
+        return; // Do not issue repeat alerts if persistent deduplication is unavailable.
+      }
       try {
         await showSystemNotification(`InnerGlow · ${slot.label}`, {
           body: `${slot.prompt} “${affirmation.text}”`,
@@ -679,7 +694,8 @@ export function App() {
           data: { url: "/" },
         });
       } catch {
-        window.localStorage.removeItem("igLastDailyAlert");
+        try { window.localStorage.removeItem("igLastDailyAlert"); }
+        catch { reportStorageIssue("igLastDailyAlert"); }
       }
     };
     checkSchedule();
@@ -739,13 +755,20 @@ export function App() {
   const moodToday = moods[today] || 0;
   const gratitudeToday = gratitudes[today] || "";
 
-  const selectAffirmation = (item) => { if (narrator.current?.isActive()) stopNarration(); setSelectedId(item.id); setView("today"); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const changeView = (nextView) => { if (nextView !== "today" && narrator.current?.isActive()) stopNarration(); setView(nextView); };
+  const changeView = (nextView) => {
+    if (!VIEW_IDS.includes(nextView)) return;
+    if (nextView !== "today" && narrator.current?.isActive()) stopNarration();
+    if (window.location.hash !== `#${nextView}`) window.location.hash = nextView;
+    setView(nextView);
+  };
+  const selectAffirmation = (item) => { if (narrator.current?.isActive()) stopNarration(); setSelectedId(item.id); changeView("today"); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   return (
     <div className="app-shell" style={{ "--aurora-image": `url(${AURORA_ASSET})` }}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <Header view={view} setView={changeView} theme={theme} setTheme={setTheme} onMeeting={() => openMeeting()} />
-      <main>
+      {storageIssue && <p className="storage-warning" role="alert">Some saved information could not be read or saved on this device. Existing records were not overwritten. Changes to affected items may not persist; back up your data before clearing browser storage.</p>}
+      <main id="main-content" tabIndex={-1}>
         {view === "today" && <TodayView
           scenery={scenery} setScenery={setScenery} onMeeting={() => openMeeting()}
           hero={{ scenery: currentScenery, onMeeting: () => openMeeting("daily"), affirmation, isSaved: favorites.includes(affirmation.id), narration, repeatCount, sessionMinutes, onRepeatChange: changeRepeatCount, onPrevious: () => move(-1), onNext: () => move(1), onListen: listen, onSave: () => toggleFavorite(affirmation.id), onShare: share }}
