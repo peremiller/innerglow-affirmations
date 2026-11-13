@@ -1,0 +1,51 @@
+name: InnerGlow Universal Quality
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "e2e/**"
+      - "scripts/offline/**"
+      - "package.json"
+      - "package-lock.json"
+      - "index.html"
+      - ".github/workflows/innerglow-quality.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out existing application
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked application dependencies
+        run: npm ci
+      - name: Run saved-progress and application tests
+        run: npm test
+      - name: Check offline preservation
+        run: npm run test:offline
+      - name: Build canonical production application
+        run: npm run build
+      - name: Prepare Chromium test runtime without modifying project lockfile
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run real Chromium view, keyboard, responsive and storage recovery tests
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/innerglow-preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173/ >/dev/null
+          node e2e/innerglow.chromium.mjs
