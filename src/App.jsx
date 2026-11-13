@@ -765,7 +765,7 @@ export function App() {
 
   return (
     <div className="app-shell" style={{ "--aurora-image": `url(${AURORA_ASSET})` }}>
-      <a className="skip-link" href="#main-content">Skip to content</a>
+      <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); document.getElementById("main-content")?.focus(); }}>Skip to content</a>
       <Header view={view} setView={changeView} theme={theme} setTheme={setTheme} onMeeting={() => openMeeting()} />
       {storageIssue && <p className="storage-warning" role="alert">Some saved information could not be read or saved on this device. Existing records were not overwritten. Changes to affected items may not persist; back up your data before clearing browser storage.</p>}
       <main id="main-content" tabIndex={-1}>
