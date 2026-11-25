@@ -25,8 +25,11 @@ export function loadSavedValue(storageProvider, key, fallback) {
 export function saveSavedValue(storageProvider, key, value, initialRead) {
   if (!initialRead?.writable) return false;
   try {
-    storageProvider().setItem(key, JSON.stringify(value));
-    return true;
+    const serialized = JSON.stringify(value);
+    if (typeof serialized !== "string") return false;
+    const storage = storageProvider();
+    storage.setItem(key, serialized);
+    return storage.getItem(key) === serialized;
   } catch {
     return false;
   }
