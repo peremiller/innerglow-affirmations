@@ -57,7 +57,7 @@ test("blocked reads and quota/security-denied writes fail without crashing", () 
   assert.equal(entry.writable, false);
   assert.equal(saveSavedValue(blocked, "igWishes", [], entry), false);
   const noWrites = { getItem() { return null; }, setItem() { throw new Error("QuotaExceededError"); } };
-  assert.equal(saveSavedValue(() => noWrites, "igWishes", [], { writable: true }), false);
+  assert.equal(saveSavedValue(() => noWrites, "igWishes", [], loadSavedValue(() => noWrites, "igWishes", [])), false);
 });
 
 test("protected storage error state is detectable without resetting records", () => {
@@ -90,4 +90,33 @@ test("undefined is not a valid serialized record", () => {
   const entry = loadSavedValue(() => data, "igFavs2", []);
   assert.equal(saveSavedValue(() => data, "igFavs2", undefined, entry), false);
   assert.equal(data.getItem("igFavs2"), '["a2"]');
+});
+
+test("a stale tab cannot overwrite records saved by another tab", () => {
+  const data = storage({ igWishes: '[{"id":7}]' });
+  const first = loadSavedValue(() => data, "igWishes", []);
+  const second = loadSavedValue(() => data, "igWishes", []);
+  assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 8 }], second), true);
+  assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 9 }], first), false);
+  assert.equal(data.getItem("igWishes"), '[{"id":8}]');
+});
+
+test("successful sequential writes advance the observed baseline", () => {
+  const data = storage();
+  const entry = loadSavedValue(() => data, "igMinutes", 0);
+  assert.equal(saveSavedValue(() => data, "igMinutes", 1, entry), true);
+  assert.equal(saveSavedValue(() => data, "igMinutes", 2, entry), true);
+  assert.equal(data.getItem("igMinutes"), "2");
+});
+
+test("a record created or removed elsewhere is not silently overwritten", () => {
+  const data = storage();
+  const entry = loadSavedValue(() => data, "igWishes", []);
+  data.setItem("igWishes", '[{"id":7}]');
+  assert.equal(saveSavedValue(() => data, "igWishes", [], entry), false);
+  assert.equal(data.getItem("igWishes"), '[{"id":7}]');
+  const loaded = loadSavedValue(() => data, "igWishes", []);
+  data.items.delete("igWishes");
+  assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 9 }], loaded), false);
+  assert.equal(data.getItem("igWishes"), null);
 });
