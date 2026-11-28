@@ -57,7 +57,7 @@ test("blocked reads and quota/security-denied writes fail without crashing", () 
   assert.equal(entry.writable, false);
   assert.equal(saveSavedValue(blocked, "igWishes", [], entry), false);
   const noWrites = { getItem() { return null; }, setItem() { throw new Error("QuotaExceededError"); } };
-  assert.equal(saveSavedValue(() => noWrites, "igWishes", [], { writable: true }), false);
+  assert.equal(saveSavedValue(() => noWrites, "igWishes", [], loadSavedValue(() => noWrites, "igWishes", [])), false);
 });
 
 test("protected storage error state is detectable without resetting records", () => {
@@ -71,4 +71,66 @@ test("every major tab has a unique stable hash and unrelated hashes do not crash
   assert.equal(viewFromHash("#unknown"), "today");
   assert.equal(viewFromHash("#main-content"), "today");
   assert.equal(viewFromHash(""), "today");
+});
+
+
+test("silently rejected writes do not report success or replace the saved record", () => {
+  const data = storage({ igWishes: '[{"id":7,"text":"Hope"}]' });
+  const entry = loadSavedValue(() => data, "igWishes", []);
+  const write = data.setItem;
+  data.setItem = () => {};
+  assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 8, text: "New" }], entry), false);
+  assert.equal(data.getItem("igWishes"), '[{"id":7,"text":"Hope"}]');
+  data.setItem = write;
+  assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 8, text: "New" }], entry), true);
+});
+
+test("undefined is not a valid serialized record", () => {
+  const data = storage({ igFavs2: '["a2"]' });
+  const entry = loadSavedValue(() => data, "igFavs2", []);
+  assert.equal(saveSavedValue(() => data, "igFavs2", undefined, entry), false);
+  assert.equal(data.getItem("igFavs2"), '["a2"]');
+});
+
+test("a stale tab cannot overwrite records saved by another tab", () => {
+  const data = storage({ igWishes: '[{"id":7}]' });
+  const first = loadSavedValue(() => data, "igWishes", []);
+  const second = loadSavedValue(() => data, "igWishes", []);
+  assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 8 }], second), true);
+  assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 9 }], first), false);
+  assert.equal(data.getItem("igWishes"), '[{"id":8}]');
+});
+
+test("successful sequential writes advance the observed baseline", () => {
+  const data = storage();
+  const entry = loadSavedValue(() => data, "igMinutes", 0);
+  assert.equal(saveSavedValue(() => data, "igMinutes", 1, entry), true);
+  assert.equal(saveSavedValue(() => data, "igMinutes", 2, entry), true);
+  assert.equal(data.getItem("igMinutes"), "2");
+});
+
+test("a record created or removed elsewhere is not silently overwritten", () => {
+  const data = storage();
+  const entry = loadSavedValue(() => data, "igWishes", []);
+  data.setItem("igWishes", '[{"id":7}]');
+  assert.equal(saveSavedValue(() => data, "igWishes", [], entry), false);
+  assert.equal(data.getItem("igWishes"), '[{"id":7}]');
+  const loaded = loadSavedValue(() => data, "igWishes", []);
+  data.items.delete("igWishes");
+  assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 9 }], loaded), false);
+  assert.equal(data.getItem("igWishes"), null);
+});
+
+test("writes cannot replace valid records with values the loader would reject", () => {
+  for (const [raw, fallback, invalid] of [
+    ["23", 0, NaN], ["23", 0, Infinity], ["23", 0, "23"],
+    ['["a"]', [], {}], ['{"a":1}', {}, []], ["true", false, 0],
+    ['"forest"', "forest", { toJSON: () => null }],
+  ]) {
+    const data = storage({ record: raw });
+    const entry = loadSavedValue(() => data, "record", fallback);
+    assert.equal(saveSavedValue(() => data, "record", invalid, entry), false);
+    assert.equal(data.getItem("record"), raw);
+    assert.equal(saveSavedValue(() => data, "record", fallback, entry), true);
+  }
 });

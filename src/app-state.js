@@ -13,10 +13,10 @@ function matchesFallbackType(value, fallback) {
 export function loadSavedValue(storageProvider, key, fallback) {
   try {
     const raw = storageProvider().getItem(key);
-    if (raw === null) return { value: fallback, writable: true };
+    if (raw === null) return { value: fallback, writable: true, raw };
     const value = JSON.parse(raw);
     if (!matchesFallbackType(value, fallback)) return { value: fallback, writable: false };
-    return { value, writable: true };
+    return { value, writable: true, raw };
   } catch {
     // Never replace unreadable or malformed existing user data with defaults.
     return { value: fallback, writable: false };
@@ -25,7 +25,16 @@ export function loadSavedValue(storageProvider, key, fallback) {
 export function saveSavedValue(storageProvider, key, value, initialRead) {
   if (!initialRead?.writable) return false;
   try {
-    storageProvider().setItem(key, JSON.stringify(value));
+    const serialized = JSON.stringify(value);
+    if (typeof serialized !== "string") return false;
+    // Reject records that would be unreadable by the matching loader (e.g. NaN becomes null).
+    if (!matchesFallbackType(JSON.parse(serialized), initialRead.value)) return false;
+    const storage = storageProvider();
+    // Refuse stale snapshots; this is best-effort, not an atomic cross-tab lock.
+    if (storage.getItem(key) !== initialRead.raw) return false;
+    storage.setItem(key, serialized);
+    if (storage.getItem(key) !== serialized) return false;
+    initialRead.raw = serialized;
     return true;
   } catch {
     return false;
