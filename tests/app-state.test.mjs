@@ -120,3 +120,17 @@ test("a record created or removed elsewhere is not silently overwritten", () => 
   assert.equal(saveSavedValue(() => data, "igWishes", [{ id: 9 }], loaded), false);
   assert.equal(data.getItem("igWishes"), null);
 });
+
+test("writes cannot replace valid records with values the loader would reject", () => {
+  for (const [raw, fallback, invalid] of [
+    ["23", 0, NaN], ["23", 0, Infinity], ["23", 0, "23"],
+    ['["a"]', [], {}], ['{"a":1}', {}, []], ["true", false, 0],
+    ['"forest"', "forest", { toJSON: () => null }],
+  ]) {
+    const data = storage({ record: raw });
+    const entry = loadSavedValue(() => data, "record", fallback);
+    assert.equal(saveSavedValue(() => data, "record", invalid, entry), false);
+    assert.equal(data.getItem("record"), raw);
+    assert.equal(saveSavedValue(() => data, "record", fallback, entry), true);
+  }
+});
